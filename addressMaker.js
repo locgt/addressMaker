@@ -1,5 +1,5 @@
 const message = '' // Try edit me
-const global = {increments:16, spokes:16, showAddress: false, graphType: "radial" };
+const global = {increments:16, spokes:16, showAddress: false, graphType: "radial", plotOrigin: false };
 
 window.addEventListener('load', main);
 window.addEventListener('keydown', keyDown, false);
@@ -32,7 +32,7 @@ function keyDown(evt) {
 	if(evt.key == "S") {global.spokes++; buildArrays(global.spokes);}
 	if(evt.key == "i") {global.increments--; buildArrays(global.spokes);}
 	if(evt.key == "I") {global.increments++; buildArrays(global.spokes);}
-
+	if(evt.key == "o") {global.plotOrigin = ! global.plotOrigin; }
 	
 	return plotArrays(global.graphType);
 }
@@ -44,7 +44,13 @@ function plotArrays(type){
 	if(type=="radial") { plotArraysRadial(); }
 	if(type=="linear") { plotArraysLinear(); }
 	printAddress();
+	if(global.plotOrigin) { plotOrigin(); }
 }
+
+function plotOrigin() {
+	line(outerXs[0],outerYs[0],innerXs[0],innerYs[0])
+}
+
 
 function printAddress(){
 	console.log("printing address");
