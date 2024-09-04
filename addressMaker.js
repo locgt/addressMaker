@@ -38,11 +38,43 @@ function keyDown(evt) {
 	if(evt.key == "c") {global.circle= ! global.circle; }
 	if(evt.key == "C") {global.circles= ! global.circles; }
 	if(evt.key == "R") {global.radials= ! global.radials; }
-
-
+	if(evt.key == "t") {
+		var tmpOuter=getNumbersAsArray(global.spokes, global.increments, "Outer Array: ");
+		if (tmpOuter != null) {
+			outerPoints=tmpOuter;
+		}
+	}
+	if(evt.key == "n") {
+		var tmpInner=getNumbersAsArray(global.spokes, global.increments, "Inner Array: ");
+		if (tmpInner != null) {
+			innerPoints=tmpInner;
+		}
+	}
 	
 	return plotArrays(global.graphType);
 }
+
+function getNumbersAsArray(globalSpokes, globalIncrements, promptPrefix) {
+  const input = prompt(promptPrefix+"Enter "+globalSpokes+ " numbers from 1 to "+globalIncrements+" separated by commas");
+  if (input === null) {
+    return null; // User canceled the input
+  }
+  const numbers = input.split(",");
+  // Filter out empty strings, non-numeric values, and numbers outside the range
+  const validNumbers = numbers.filter(num => {
+    return num !== "" && !isNaN(num) && Number(num) >= 1 && Number(num) <= globalIncrements;
+  });
+
+  // Check if the number of valid numbers matches globalSpokes
+  if (validNumbers.length !== globalSpokes) {
+    alert(`Please enter exactly ${globalSpokes} numbers that are from 1 to ${globalIncrements}.`);
+    return null;
+  }
+  // Convert remaining strings to numbers
+  const numericArray = validNumbers.map(num => Number(num));
+  return numericArray;
+}
+
 
 function plotArrays(type){
 	//clear the canvas	
@@ -55,6 +87,7 @@ function plotArrays(type){
 }
 
 function plotOrigin() {
+	global.ctx.fillStyle = "black";
 	line(outerXs[0],outerYs[0],innerXs[0],innerYs[0])
 }
 
