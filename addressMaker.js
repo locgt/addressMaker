@@ -17,7 +17,9 @@ function main(){
 	global.room_width=canvas.width;
 	global.room_height=canvas.height;
     global.ctx = global.canvas.getContext('2d');
-	
+	global.circle=false;
+	global.circles=false;
+	global.radials=false;
 	buildArrays(global.spokes);
 	plotArrays(global.graphType);
 }
@@ -33,6 +35,11 @@ function keyDown(evt) {
 	if(evt.key == "i") {global.increments--; buildArrays(global.spokes);}
 	if(evt.key == "I") {global.increments++; buildArrays(global.spokes);}
 	if(evt.key == "o") {global.plotOrigin = ! global.plotOrigin; }
+	if(evt.key == "c") {global.circle= ! global.circle; }
+	if(evt.key == "C") {global.circles= ! global.circles; }
+	if(evt.key == "R") {global.radials= ! global.radials; }
+
+
 	
 	return plotArrays(global.graphType);
 }
@@ -93,6 +100,17 @@ function plotArraysRadial(){
 	
 	traceAndFill(outerXs, outerYs, 'red', 'black');
 	traceAndFill(innerXs, innerYs, 'white', 'black');
+	if(global.circle == true) {
+		drawOuterCircle();
+	}
+	if(global.circles == true) {
+		drawCircles();
+		drawOuterCircle();
+	}
+	if(global.radials == true) {
+		drawRadials();
+	}
+
 	
 }
 
@@ -124,6 +142,32 @@ function plotArraysLinear(){
 	
 }
 
+function drawOuterCircle(){
+	circle(global.room_width/2, global.room_height/2, (global.room_height/2)-1, 'black', 2);
+	return;
+}
+
+function drawCircles() {
+	//draw the circles from center to outer in light gray
+	var y_scale=(global.room_height/2)/global.increments;
+	for (var i=0; i<global.increments ;i++) {
+		circle(global.room_width/2, global.room_height/2, i*y_scale, 'Thistle', 1);
+	
+	}
+}
+
+function drawRadials(){
+	var x_scale=(global.room_width/2)/global.increments;
+	var y_scale=(global.room_height/2)/global.increments;
+	for (var i=0; i<360 ;i+=(360/global.spokes)) {
+		outerX=(global.room_width/2)+(Math.sin(i*0.0174533)*(global.increments*x_scale));
+		outerY=(global.room_height/2)+(Math.cos(i*0.0174533)*(global.increments*y_scale));
+		global.ctx.strokeStyle = 'Thistle'; 
+		global.ctx.lineWidth   = 1;
+		line(global.room_width/2,global.room_height/2,outerX,outerY);
+	}	
+}
+
 function traceAndFill(Xs, Ys, fillColor, lineColor){
     global.ctx.fillStyle = fillColor;
     global.ctx.beginPath();     //Begin a path..
@@ -142,11 +186,13 @@ function traceAndFill(Xs, Ys, fillColor, lineColor){
     global.ctx.stroke();
 }
 
-function circle (x, y, color){
+function circle (x, y, radius, color, thickness){
 	global.ctx.beginPath();
-	global.ctx.arc(x, y, 6, 0, 2 * Math.PI);
-	global.ctx.strokeStyle = color;
-	global.ctx.stroke();	
+	global.ctx.strokeStyle = color; 
+	global.ctx.lineWidth = thickness;
+	global.ctx.arc(x,y,radius, 0, 2 * Math.PI);
+	global.ctx.stroke();
+	return;
 }
 
 function line(x1,y1,x2,y2) {
