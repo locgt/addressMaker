@@ -20,6 +20,8 @@ function main(){
 	global.circle=false;
 	global.circles=false;
 	global.radials=false;
+	global.fill=true;
+	global.lineWidth=1;
 	buildArrays(global.spokes);
 	plotArrays(global.graphType);
 }
@@ -38,6 +40,10 @@ function keyDown(evt) {
 	if(evt.key == "c") {global.circle= ! global.circle; }
 	if(evt.key == "C") {global.circles= ! global.circles; }
 	if(evt.key == "R") {global.radials= ! global.radials; }
+	if(evt.key == "f") {global.fill= ! global.fill; }
+	if(evt.key == "w") {global.lineWidth=Math.max(global.lineWidth-1,1);}
+	if(evt.key == "W") {global.lineWidth++; }
+
 	if(evt.key == "t") {
 		var tmpOuter=getNumbersAsArray(global.spokes, global.increments, "Outer Array: ");
 		if (tmpOuter != null) {
@@ -99,7 +105,8 @@ function printAddress(){
 	global.ctx.textAlign = "center";
 	var outerAddr="Outer: "+outerPoints.join(",");	
 	var innerAddr="Inner: "+innerPoints.join(",");
-	document.getElementById("AdressText").innerHTML=outerAddr+"<br>"+innerAddr+"<br> Spokes: "+global.spokes+"<br>Increments: "+global.increments;
+	var lineWidth="LineWidth: "+global.lineWidth;
+	document.getElementById("AdressText").innerHTML=outerAddr+"<br>"+innerAddr+"<br> Spokes: "+global.spokes+"<br>Increments: "+global.increments+"<br> "+lineWidth;
 	if(global.showAddress) {
 		global.ctx.fillText(outerAddr, global.room_width/2, global.room_height-25);
 		global.ctx.fillText(innerAddr, global.room_width/2, global.room_height-2);
@@ -176,7 +183,7 @@ function plotArraysLinear(){
 }
 
 function drawOuterCircle(){
-	circle(global.room_width/2, global.room_height/2, (global.room_height/2)-1, 'black', 2);
+	circle(global.room_width/2, global.room_height/2, (global.room_height/2)-(global.lineWidth/2), 'black', global.lineWidth+1);
 	return;
 }
 
@@ -212,10 +219,10 @@ function traceAndFill(Xs, Ys, fillColor, lineColor){
 	}
     global.ctx.closePath();     //Close the path.
     //Fill triangle with previous set color.
-    global.ctx.fill();
+    if(global.fill) {global.ctx.fill(); }
     //Give triangle a stroke (width: 4 pixels).
     global.ctx.strokeStyle = lineColor;
-    global.ctx.lineWidth   = 1;
+    global.ctx.lineWidth   = global.lineWidth;
     global.ctx.stroke();
 }
 
