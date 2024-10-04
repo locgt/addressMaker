@@ -40,6 +40,7 @@ function keyDown(evt) {
 	if(evt.key == "c") {global.circle= ! global.circle; }
 	if(evt.key == "C") {global.circles= ! global.circles; }
 	if(evt.key == "R") {global.radials= ! global.radials; }
+	if(evt.key == "d") {global.radialdots= ! global.radialdots; }
 	if(evt.key == "f") {global.fill= ! global.fill; }
 	if(evt.key == "w") {global.lineWidth=Math.max(global.lineWidth-1,1);}
 	if(evt.key == "W") {global.lineWidth++; }
@@ -150,7 +151,9 @@ function plotArraysRadial(){
 	if(global.radials == true) {
 		drawRadials();
 	}
-
+	if(global.radialdots == true) {
+		drawRadialDots();
+	}
 	
 }
 
@@ -207,6 +210,20 @@ function drawRadials(){
 		line(global.room_width/2,global.room_height/2,outerX,outerY);
 	}	
 }
+
+function drawRadialDots(){
+	var x_scale=(global.room_width/2)/global.increments;
+	var y_scale=(global.room_height/2)/global.increments;
+	for (var i=0; i<360 ;i+=(360/global.spokes)) {
+		outerX=(global.room_width/2)+(Math.sin(i*0.0174533)*(global.increments*x_scale));
+		outerY=(global.room_height/2)+(Math.cos(i*0.0174533)*(global.increments*y_scale));
+		global.ctx.strokeStyle = 'Thistle'; 
+		global.ctx.lineWidth   = 1;
+		//line(global.room_width/2,global.room_height/2,outerX,outerY);
+		circle (outerX,outerY, 1, 'black', global.lineWidth+2)
+	}		
+}
+
 
 function traceAndFill(Xs, Ys, fillColor, lineColor){
     global.ctx.fillStyle = fillColor;
