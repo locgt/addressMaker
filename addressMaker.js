@@ -13,9 +13,12 @@ innerYs=[];
 
 function main(){
 	//get canvas context to draw upon.
+	global.border=20;
 	global.canvas = document.getElementById('canvas');
-	global.room_width=canvas.width;
-	global.room_height=canvas.height;
+	global.room_width=canvas.width-global.border;
+	global.room_height=canvas.height-global.border;
+	global.centerX=canvas.width/2;
+	global.centerY=canvas.height/2;
     global.ctx = global.canvas.getContext('2d');
 	global.circle=false;
 	global.circles=false;
@@ -28,6 +31,7 @@ function main(){
 
 function keyDown(evt) {
 	console.log("Keydown event: "+evt.key);
+	global.ctx.clearRect(0, 0, canvas.width, canvas.height);
 	if(evt.key == "l") {global.graphType="linear";}
 	if(evt.key == "r") {global.graphType="radial";}
 	if(evt.key == "a") {global.showAddress = ! global.showAddress;}
@@ -109,8 +113,8 @@ function printAddress(){
 	var lineWidth="LineWidth: "+global.lineWidth;
 	document.getElementById("AdressText").innerHTML=outerAddr+"<br>"+innerAddr+"<br> Spokes: "+global.spokes+"<br>Increments: "+global.increments+"<br> "+lineWidth;
 	if(global.showAddress) {
-		global.ctx.fillText(outerAddr, global.room_width/2, global.room_height-25);
-		global.ctx.fillText(innerAddr, global.room_width/2, global.room_height-2);
+		global.ctx.fillText(outerAddr, centerX, global.room_height-25);
+		global.ctx.fillText(innerAddr, centerX, centerY);
 	}
 }
 
@@ -124,14 +128,15 @@ function plotArraysRadial(){
 		console.log("plotting: " + outer + " and " + inner);
 		var x_scale=(global.room_width/2)/global.increments;
 		var y_scale=(global.room_height/2)/global.increments;
-		outerX=(global.room_width/2)+(Math.sin(i*0.0174533)*(outer*x_scale));
-		outerY=(global.room_height/2)+(Math.cos(i*0.0174533)*(outer*y_scale));
+
+		outerX=(global.centerX)+(Math.sin(i*0.0174533)*(outer*x_scale));
+		outerY=(global.centerY)+(Math.cos(i*0.0174533)*(outer*y_scale));
 		outerXs[ind]=outerX;
 		outerYs[ind]=outerY;
 		//circle( outerX, outerY, "green");
 		
-		innerX=(global.room_width/2)+(Math.sin(i*0.0174533)*(inner*x_scale));
-		innerY=(global.room_height/2)+(Math.cos(i*0.0174533)*(inner*y_scale));
+		innerX=(global.centerX)+(Math.sin(i*0.0174533)*(inner*x_scale));
+		innerY=(global.centerY)+(Math.cos(i*0.0174533)*(inner*y_scale));
 		//circle(innerX , innerY, "red");
 		innerXs[ind]=innerX;
 		innerYs[ind]=innerY;
@@ -161,15 +166,15 @@ function plotArraysLinear(){
 	console.log("Plotting linear address");
 	var ind=0;  //index for arrays from 0 to spokes.
 	var linear_x_scale=global.room_width/global.spokes;
-	var y_scale=(global.room_height/2)/global.increments;
+	var y_scale=(global.centerY)/global.increments;
 
 	while(ind < outerPoints.length) {
 		outerXs[ind] = (ind * linear_x_scale)+linear_x_scale/2;
-		outerYs[ind] = (global.room_height/2)-((y_scale*global.increments)/2)+(outerPoints[ind]*y_scale);
+		outerYs[ind] = (global.centerY)-((y_scale*global.increments)/2)+(outerPoints[ind]*y_scale);
 		//circle(outerXs[ind],outerYs[ind],'black');
 		
 		innerXs[ind] = (ind * linear_x_scale)+linear_x_scale/2;
-		innerYs[ind] = (global.room_height/2)-((y_scale*global.increments)/2)+(innerPoints[ind]*y_scale);
+		innerYs[ind] = (global.centerY)-((y_scale*global.increments)/2)+(innerPoints[ind]*y_scale);
 		//console.log("Inner coords: "+ innerXs[ind] +","+innerYs[ind]);
 		//circle(innerXs[ind],innerYs[ind],'yellow');
 		ind++;
@@ -186,7 +191,7 @@ function plotArraysLinear(){
 }
 
 function drawOuterCircle(){
-	circle(global.room_width/2, global.room_height/2, (global.room_height/2)-(global.lineWidth/2), 'black', global.lineWidth+1);
+	circle(global.centerX, global.centerY, (global.room_height/2)-(global.lineWidth/2), 'black', global.lineWidth+1);
 	return;
 }
 
@@ -194,7 +199,7 @@ function drawCircles() {
 	//draw the circles from center to outer in light gray
 	var y_scale=(global.room_height/2)/global.increments;
 	for (var i=0; i<global.increments ;i++) {
-		circle(global.room_width/2, global.room_height/2, i*y_scale, 'Thistle', 1);
+		circle(global.centerX, global.centerY, i*y_scale, 'Thistle', 1);
 	
 	}
 }
@@ -203,11 +208,11 @@ function drawRadials(){
 	var x_scale=(global.room_width/2)/global.increments;
 	var y_scale=(global.room_height/2)/global.increments;
 	for (var i=0; i<360 ;i+=(360/global.spokes)) {
-		outerX=(global.room_width/2)+(Math.sin(i*0.0174533)*(global.increments*x_scale));
-		outerY=(global.room_height/2)+(Math.cos(i*0.0174533)*(global.increments*y_scale));
+		outerX=(global.centerX)+(Math.sin(i*0.0174533)*(global.increments*x_scale));
+		outerY=(global.centerY)+(Math.cos(i*0.0174533)*(global.increments*y_scale));
 		global.ctx.strokeStyle = 'Thistle'; 
 		global.ctx.lineWidth   = 1;
-		line(global.room_width/2,global.room_height/2,outerX,outerY);
+		line(global.centerX,global.centerY,outerX,outerY);
 	}	
 }
 
@@ -215,8 +220,8 @@ function drawRadialDots(){
 	var x_scale=(global.room_width/2)/global.increments;
 	var y_scale=(global.room_height/2)/global.increments;
 	for (var i=0; i<360 ;i+=(360/global.spokes)) {
-		outerX=(global.room_width/2)+(Math.sin(i*0.0174533)*(global.increments*x_scale));
-		outerY=(global.room_height/2)+(Math.cos(i*0.0174533)*(global.increments*y_scale));
+		outerX=(global.centerX)+(Math.sin(i*0.0174533)*(global.increments*x_scale));
+		outerY=(global.centerY)+(Math.cos(i*0.0174533)*(global.increments*y_scale));
 		global.ctx.strokeStyle = 'Thistle'; 
 		global.ctx.lineWidth   = 1;
 		//line(global.room_width/2,global.room_height/2,outerX,outerY);
