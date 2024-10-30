@@ -99,6 +99,14 @@ function keyDown(evt) {
 			innerPoints=tmpInner;
 		}
 	}
+	if(evt.key =="A") {
+		[outerPoints,innerPoints]=getWholeAddressAsArray(global.spokes, global.increments, "Enter a whole address");
+		if (outerPoints == null || innerPoints == null) {
+			alert(`Invalid input format. Randomizing arrays.`);
+			buildArrays(global.spokes);
+			return;
+		}
+	}
 	saveData();
 	return plotArrays(global.graphType);
 }
@@ -123,6 +131,49 @@ function getNumbersAsArray(globalSpokes, globalIncrements, promptPrefix) {
   const numericArray = validNumbers.map(num => Number(num));
   return numericArray;
 }
+
+function getWholeAddressAsArray(globalSpokes, globalIncrements, promptPrefix) {
+  const input = prompt("Enter a whole address on one line like: 'Outer: 9,10,12,15,14,2,16,3,9,3,15,8,5,15,16,5 Inner: 1,8,4,12,6,1,8,2,7,2,7,3,3,4,1,2'");
+  if (input == null) {
+    return null; // User canceled the input
+  }
+  console.log("received string: "+input);
+  const cleanedString = input.trim().replace(/^"/, '').replace(/"$/, '');
+  console.log("Cleaned string: "+cleanedString);
+  const [outerPart, innerPart] = cleanedString.split("Inner:");
+
+  const outerNumbers = outerPart.split(":")[1].trim().split(",");
+  const outerArray = outerNumbers.map(Number);
+
+  const innerNumbers = innerPart.trim().split(",");
+  const innerArray = innerNumbers.map(Number);
+  console.log("innerNumbers: "+innerNumbers);
+  console.log("outerNumbers: "+outerNumbers);
+  
+
+  // Filter out empty strings, non-numeric values, and numbers outside the range
+  var validNumbers = outerArray.filter(num => {
+    return num !== "" && !isNaN(num) && Number(num) >= 1 && Number(num) <= globalIncrements;
+  });
+  // Check if the number of valid numbers matches globalSpokes
+  if (validNumbers.length !== globalSpokes) {
+    alert(`Please enter exactly ${globalSpokes} numbers that are from 1 to ${globalIncrements}.`);
+    return null;
+  }
+
+  validNumbers = innerArray.filter(num => {
+    return num !== "" && !isNaN(num) && Number(num) >= 1 && Number(num) <= globalIncrements;
+  });
+
+  // Check if the number of valid numbers matches globalSpokes
+  if (validNumbers.length !== globalSpokes) {
+    alert(`Please enter exactly ${globalSpokes} numbers that are from 1 to ${globalIncrements}.`);
+    return null;
+  }
+  console.log("Returning two arrays: "+outerArray+" and "+innerArray);
+  return [ outerArray, innerArray ];
+}
+
 
 
 function plotArrays(type){
@@ -160,8 +211,8 @@ function printAddress(){
 	var lineWidth="LineWidth: "+global.lineWidth;
 	document.getElementById("AdressText").innerHTML=outerAddr+"<br>"+innerAddr+"<br> Spokes: "+global.spokes+"<br>Increments: "+global.increments+"<br> "+lineWidth;
 	if(global.showAddress) {
-		global.ctx.fillText(outerAddr, centerX, global.room_height-25);
-		global.ctx.fillText(innerAddr, centerX, centerY);
+		global.ctx.fillText(outerAddr, global.centerX, global.room_height-25);
+		global.ctx.fillText(innerAddr, global.centerX, global.room_height);
 	}
 }
 
