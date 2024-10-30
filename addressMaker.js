@@ -1,5 +1,11 @@
 const message = '' // Try edit me
-const global = {increments:16, spokes:16, showAddress: false, graphType: "radial", plotOrigin: false };
+//use this URL to fill with hashmarks: https://stackoverflow.com/questions/17518107/creating-html5-canvas-patterns-and-filling-stuff-with-them 
+
+const global = {increments:16, spokes:16, showAddress: false, graphType: "radial", plotOrigin: false, radialdots: 0};
+
+global.patternImage = new Image();
+global.patternImage.src = 'hash.png'; // Replace with the correct path to your image
+
 
 window.addEventListener('load', main);
 window.addEventListener('keydown', keyDown, false);
@@ -20,6 +26,9 @@ function main(){
 	global.centerX=canvas.width/2;
 	global.centerY=canvas.height/2;
     global.ctx = global.canvas.getContext('2d');
+	
+	global.pattern=global.ctx.createPattern(global.patternImage, 'repeat');
+	
 	global.circle=false;
 	global.circles=false;
 	global.radials=false;
@@ -27,6 +36,7 @@ function main(){
 	global.lineWidth=1;
 	buildArrays(global.spokes);
 	plotArrays(global.graphType);
+
 }
 
 function keyDown(evt) {
@@ -44,10 +54,12 @@ function keyDown(evt) {
 	if(evt.key == "c") {global.circle= ! global.circle; }
 	if(evt.key == "C") {global.circles= ! global.circles; }
 	if(evt.key == "R") {global.radials= ! global.radials; }
-	if(evt.key == "d") {global.radialdots= ! global.radialdots; }
+	if(evt.key == "d") {global.radialdots++; if (global.radialdots>2) {global.radialdots=0} }
 	if(evt.key == "f") {global.fill= ! global.fill; }
 	if(evt.key == "w") {global.lineWidth=Math.max(global.lineWidth-1,1);}
 	if(evt.key == "W") {global.lineWidth++; }
+	if(evt.key == "b") {global.BWFill =! global.BWFill; }
+	if(evt.key == "F") {global.filter =! global.filter; }
 
 	if(evt.key == "t") {
 		var tmpOuter=getNumbersAsArray(global.spokes, global.increments, "Outer Array: ");
@@ -90,11 +102,20 @@ function getNumbersAsArray(globalSpokes, globalIncrements, promptPrefix) {
 function plotArrays(type){
 	//clear the canvas	
 	global.ctx.clearRect(0,0,global.room_width, global.room_height);
+	global.ctx.filter = 'none';
+
 	//draw the plot
 	if(type=="radial") { plotArraysRadial(); }
 	if(type=="linear") { plotArraysLinear(); }
 	printAddress();
 	if(global.plotOrigin) { plotOrigin(); }
+	if(global.filter) {
+		console.log("Applying filter");
+		// Apply the pencil sketch filter
+		global.ctx.filter = 'blur(1px) grayscale(1)';
+		// Redraw the canvas to apply the filter
+		global.ctx.drawImage(canvas, 0, 0);
+	}
 }
 
 function plotOrigin() {
@@ -143,9 +164,19 @@ function plotArraysRadial(){
 		
 		ind++;
 	}
+
+	if(global.BWFill ){
+		traceAndFill(outerXs, outerYs, 'white', 'black');
+		//traceAndFillPattern(outerXs, outerYs, 'black');
+		//traceAndFill(innerXs, innerYs, 'white', 'black');
+		traceAndFillPattern(innerXs, innerYs, 'black');
+	} else {
+		traceAndFill(outerXs, outerYs, 'red', 'black');
+		traceAndFill(innerXs, innerYs, 'white', 'black');
+	}
 	
-	traceAndFill(outerXs, outerYs, 'red', 'black');
-	traceAndFill(innerXs, innerYs, 'white', 'black');
+	
+
 	if(global.circle == true) {
 		drawOuterCircle();
 	}
@@ -156,7 +187,7 @@ function plotArraysRadial(){
 	if(global.radials == true) {
 		drawRadials();
 	}
-	if(global.radialdots == true) {
+	if(global.radialdots) {
 		drawRadialDots();
 	}
 	
@@ -219,13 +250,24 @@ function drawRadials(){
 function drawRadialDots(){
 	var x_scale=(global.room_width/2)/global.increments;
 	var y_scale=(global.room_height/2)/global.increments;
+	var ind=0;
 	for (var i=0; i<360 ;i+=(360/global.spokes)) {
+		outer = outerPoints[ind];
+		//console.log("outer=" + outer);
+		//console.log("global.increments=" + global.increments);
+
 		outerX=(global.centerX)+(Math.sin(i*0.0174533)*(global.increments*x_scale));
 		outerY=(global.centerY)+(Math.cos(i*0.0174533)*(global.increments*y_scale));
-		global.ctx.strokeStyle = 'Thistle'; 
+		//global.ctx.strokeStyle = 'Thistle'; 
 		global.ctx.lineWidth   = 1;
 		//line(global.room_width/2,global.room_height/2,outerX,outerY);
-		circle (outerX,outerY, 1, 'black', global.lineWidth+2)
+		if(outer==global.increments && global.radialdots == 2) { //only draw where the radial is max (touches the circle)
+			circle (outerX,outerY, 1, 'black', global.lineWidth*3);
+		}
+		if(global.radialdots ==1 )		{ //draww all dots
+			circle (outerX,outerY, 1, 'black', global.lineWidth*3);
+		}
+		ind++;
 	}		
 }
 
@@ -241,12 +283,37 @@ function traceAndFill(Xs, Ys, fillColor, lineColor){
 	}
     global.ctx.closePath();     //Close the path.
     //Fill triangle with previous set color.
-    if(global.fill) {global.ctx.fill(); }
+    if(global.fill) {
+		//global.ctx.fillStyle=global.pattern;
+		global.ctx.fill(); 
+	}
     //Give triangle a stroke (width: 4 pixels).
     global.ctx.strokeStyle = lineColor;
     global.ctx.lineWidth   = global.lineWidth;
     global.ctx.stroke();
 }
+
+function traceAndFillPattern(Xs, Ys, lineColor){
+    global.ctx.fillStyle = global.pattern;
+    global.ctx.beginPath();     //Begin a path..
+    global.ctx.moveTo(Xs[0], Ys[0]);  //Startpoint (x1, y1)
+	var i=1;
+	while( i < Xs.length ) {
+		global.ctx.lineTo(Xs[i], Ys[i]); //Point i    (x, y)
+		i++;
+	}
+    global.ctx.closePath();     //Close the path.
+    //Fill triangle with previous set color.
+    if(global.fill) {
+		global.ctx.fill(); 
+	}
+    //Give triangle a stroke (width: 4 pixels).
+    global.ctx.strokeStyle = lineColor;
+    global.ctx.lineWidth   = global.lineWidth;
+    global.ctx.stroke();
+}
+
+
 
 function circle (x, y, radius, color, thickness){
 	global.ctx.beginPath();
@@ -264,6 +331,9 @@ function line(x1,y1,x2,y2) {
 	global.ctx.stroke(); // Render the path
 	
 }
+
+
+
 
 function triangle(x1,y1,x2,y2,x3,y3,color){
     global.ctx.fillStyle = color;
