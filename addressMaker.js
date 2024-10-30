@@ -1,11 +1,16 @@
 const message = '' // Try edit me
 //use this URL to fill with hashmarks: https://stackoverflow.com/questions/17518107/creating-html5-canvas-patterns-and-filling-stuff-with-them 
 
-const global = {increments:16, spokes:16, showAddress: false, graphType: "radial", plotOrigin: false, radialdots: 0};
+global = {increments:16, spokes:16, showAddress: false, graphType: "radial", plotOrigin: false, radialdots: 0};
+	global.circle=false;
+	global.circles=false;
+	global.radials=false;
+	global.fill=true;
+	global.lineWidth=1;
+loadData();
 
 global.patternImage = new Image();
 global.patternImage.src = 'hash.png'; // Replace with the correct path to your image
-
 
 window.addEventListener('load', main);
 window.addEventListener('keydown', keyDown, false);
@@ -16,6 +21,30 @@ outerYs=[];
 innerPoints=[];
 innerXs=[];
 innerYs=[];
+
+function loadData(){
+	console.log("Loading data");
+	var storedData=localStorage.getItem("AddressMakerSettings");
+	// Parse JSON back to object
+	if (storedData) {
+		var decodedData = JSON.parse(storedData);
+		global=decodedData;
+		console.log(decodedData); // Access properties like decodedData.read, decodedData.color, etc.
+	} else {
+		console.log("No data found in local storage");
+		return;
+	}
+}
+
+function saveData(){
+	console.log("Saving Data");
+	console.log("Saving Data");
+	// Encode as JSON string
+	const encodedData = JSON.stringify(global);
+
+	// Store in local storage
+	localStorage.setItem("AddressMakerSettings", encodedData);
+}
 
 function main(){
 	//get canvas context to draw upon.
@@ -29,13 +58,10 @@ function main(){
 	
 	global.pattern=global.ctx.createPattern(global.patternImage, 'repeat');
 	
-	global.circle=false;
-	global.circles=false;
-	global.radials=false;
-	global.fill=true;
-	global.lineWidth=1;
+
 	buildArrays(global.spokes);
 	plotArrays(global.graphType);
+	saveData();
 
 }
 
@@ -73,7 +99,7 @@ function keyDown(evt) {
 			innerPoints=tmpInner;
 		}
 	}
-	
+	saveData();
 	return plotArrays(global.graphType);
 }
 
