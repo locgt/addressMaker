@@ -22,6 +22,33 @@ innerPoints=[];
 innerXs=[];
 innerYs=[];
 
+function copyTextToClipboard(textToCopy) {
+  // Create a temporary text area element
+  const textArea = document.createElement('textarea');
+  textArea.value = textToCopy;
+
+  // Make the text area unselectable to avoid focus
+  textArea.style.position = 'fixed';
+  textArea.style.top = '0';
+  textArea.style.left = '0';
+  textArea.style.opacity = '0';
+
+  // Append the text area to the body
+  document.body.appendChild(textArea);
+
+  // Select the text
+  textArea.select();
+  textArea.setSelectionRange(0, textArea.value.length);
+
+  // Copy the text to the clipboard
+  document.execCommand('copy');
+
+  // Remove the temporary text area
+  document.body.removeChild(textArea);
+}
+
+
+
 function loadData(){
 	console.log("Loading data");
 	var storedData=localStorage.getItem("AddressMakerSettings");
@@ -86,6 +113,21 @@ function keyDown(evt) {
 	if(evt.key == "W") {global.lineWidth++; }
 	if(evt.key == "b") {global.BWFill =! global.BWFill; }
 	if(evt.key == "F") {global.filter =! global.filter; }
+	if(evt.key == "k") {
+		var outerAddr="Outer: "+outerPoints.join(",");	
+		var innerAddr="Inner: "+innerPoints.join(",");
+		var textToCopy=outerAddr+" "+innerAddr;
+		console.log("Sending to Clipboard: "+textToCopy);
+		copyTextToClipboard(textToCopy);
+		var notification = document.getElementById('notification');
+		// Show the notification
+		notification.style.visibility='visible';
+		console.log("showing notification")
+		setTimeout(() => {
+			notification.style.visibility='hidden';
+			console.log("removing notification");
+		}, 3000);
+	}
 
 	if(evt.key == "t") {
 		var tmpOuter=getNumbersAsArray(global.spokes, global.increments, "Outer Array: ");
