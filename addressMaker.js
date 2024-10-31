@@ -251,7 +251,7 @@ function printAddress(){
 	var outerAddr="Outer: "+outerPoints.join(",");	
 	var innerAddr="Inner: "+innerPoints.join(",");
 	var lineWidth="LineWidth: "+global.lineWidth;
-	document.getElementById("AdressText").innerHTML=outerAddr+"<br>"+innerAddr+"<br> Spokes: "+global.spokes+"<br>Increments: "+global.increments+"<br> "+lineWidth;
+	document.getElementById("AdressText").innerHTML=outerAddr+"<br>"+innerAddr+"<br> Spokes: "+global.spokes+" Increments: "+global.increments+" "+lineWidth;
 	if(global.showAddress) {
 		global.ctx.fillText(outerAddr, global.centerX, global.room_height-25);
 		global.ctx.fillText(innerAddr, global.centerX, global.room_height);
