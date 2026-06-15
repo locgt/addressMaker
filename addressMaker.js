@@ -381,10 +381,10 @@ function drawRadialDots(){
 		global.ctx.lineWidth   = 1;
 		//line(global.room_width/2,global.room_height/2,outerX,outerY);
 		if(outer==global.increments && global.radialdots == 2) { //only draw where the radial is max (touches the circle)
-			circle (outerX,outerY, 1, 'black', global.lineWidth*3);
+			filledCircle(outerX,outerY, global.lineWidth*2, 'black',1);
 		}
 		if(global.radialdots ==1 )		{ //draww all dots
-			circle (outerX,outerY, 1, 'black', global.lineWidth*3);
+			filledCircle(outerX,outerY, global.lineWidth*2, 'black',1);
 		}
 		ind++;
 	}		
@@ -433,7 +433,6 @@ function traceAndFillPattern(Xs, Ys, lineColor){
 }
 
 
-
 function circle (x, y, radius, color, thickness){
 	global.ctx.beginPath();
 	global.ctx.strokeStyle = color; 
@@ -442,6 +441,18 @@ function circle (x, y, radius, color, thickness){
 	global.ctx.stroke();
 	return;
 }
+
+function filledCircle(x, y, radius, color, thickness) {
+    console.log("Drawing a filled circle");
+    global.ctx.beginPath();
+    global.ctx.fillStyle = color;
+    global.ctx.lineWidth = thickness;
+    global.ctx.arc(x, y, radius, 0, 2 * Math.PI);
+    global.ctx.fill();
+    return;
+}
+
+
 
 function line(x1,y1,x2,y2) {
 	global.ctx.beginPath(); // Start a new path
