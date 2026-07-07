@@ -7,13 +7,20 @@ global = {increments:16, spokes:16, showAddress: false, graphType: "radial", plo
 	global.radials=false;
 	global.fill=true;
 	global.lineWidth=1;
-loadData();
+	global.editMode=false;
+	loadData();
 
 global.patternImage = new Image();
 global.patternImage.src = 'hash.png'; // Replace with the correct path to your image
 
-window.addEventListener('load', main);
-window.addEventListener('keydown', keyDown, false);
+	//state saved before entering edit mode
+	global.editSaved = null;
+	global.dragging = null;        // {ring:'outer'|'inner', ind:N, ringInd:N}
+	global.editHitRadius = 10;
+
+	window.addEventListener('load', main);
+	window.addEventListener('keydown', keyDown, false);
+	// mouse listeners are attached in main() once canvas exists
 
 outerPoints=[];
 outerXs=[];
@@ -85,6 +92,11 @@ function main(){
 	
 	global.pattern=global.ctx.createPattern(global.patternImage, 'repeat');
 	
+	//attach mouse listeners for edit mode
+	global.canvas.addEventListener('mousedown', editMouseDown);
+	global.canvas.addEventListener('mousemove', editMouseMove);
+	global.canvas.addEventListener('mouseup',   editMouseUp);
+	global.canvas.addEventListener('mouseleave',editMouseUp);
 
 	buildArrays(global.spokes);
 	plotArrays(global.graphType);
@@ -94,6 +106,21 @@ function main(){
 
 function keyDown(evt) {
 	console.log("Keydown event: "+evt.key);
+
+	if(evt.key == "e") {
+		global.ctx.clearRect(0, 0, canvas.width, canvas.height);
+		toggleEditMode();
+		//edit mode handles its own redraw; skip the generic redraw below
+		saveData();
+		return;
+	}
+
+	//while in edit mode, ignore every key except 'k' (copy)
+	if(global.editMode && evt.key != "k") {
+		//don't touch the canvas — just leave the edit-mode view as-is
+		return;
+	}
+
 	global.ctx.clearRect(0, 0, canvas.width, canvas.height);
 	if(evt.key == "l") {global.graphType="linear";}
 	if(evt.key == "r") {global.graphType="radial";}
@@ -151,6 +178,168 @@ function keyDown(evt) {
 	}
 	saveData();
 	return plotArrays(global.graphType);
+}
+
+// ================= EDIT MODE =================
+
+function toggleEditMode() {
+	global.editMode = !global.editMode;
+	if(global.editMode) {
+		global.editSaved = {
+			graphType: global.graphType,
+			circle:    global.circle,
+			circles:   global.circles,
+			radials:   global.radials,
+			radialdots:global.radialdots,
+			plotOrigin:global.plotOrigin,
+			fill:      global.fill,
+			BWFill:    global.BWFill,
+			filter:    global.filter
+		};
+		global.graphType = "radial";
+		global.circle  = true;
+		global.circles = true;
+		global.radials = true;
+		global.radialdots = 1;
+		global.plotOrigin = false;
+		global.filter   = false;
+		global.dragging = null;
+		console.log("Edit mode ON");
+		document.getElementById('EditBanner').style.visibility='visible';
+	} else {
+		var s = global.editSaved;
+		if(s) {
+			global.graphType = s.graphType;
+			global.circle    = s.circle;
+			global.circles   = s.circles;
+			global.radials   = s.radials;
+			global.radialdots= s.radialdots;
+			global.plotOrigin= s.plotOrigin;
+			global.fill      = s.fill;
+			global.BWFill    = s.BWFill;
+			global.filter    = s.filter;
+		}
+		global.dragging = null;
+		global.editSaved = null;
+		console.log("Edit mode OFF — arrays kept");
+		document.getElementById('EditBanner').style.visibility='hidden';
+	}
+	plotArrays(global.graphType);
+	if(global.editMode) drawEditHandles();
+}
+
+function recomputeCoords() {
+	if(global.graphType == "radial") {
+		var ind=0;
+		var x_scale=(global.room_width/2)/global.increments;
+		var y_scale=(global.room_height/2)/global.increments;
+		for(var i=0; i<360; i+=(360/global.spokes)) {
+			var outer=outerPoints[ind], inner=innerPoints[ind];
+			outerXs[ind]=(global.centerX)+(Math.sin(i*0.0174533)*(outer*x_scale));
+			outerYs[ind]=(global.centerY)+(Math.cos(i*0.0174533)*(outer*y_scale));
+			innerXs[ind]=(global.centerX)+(Math.sin(i*0.0174533)*(inner*x_scale));
+			innerYs[ind]=(global.centerY)+(Math.cos(i*0.0174533)*(inner*y_scale));
+			ind++;
+		}
+	}
+}
+
+function mousePos(evt) {
+	var rect = global.canvas.getBoundingClientRect();
+	var scaleX = global.canvas.width  / rect.width;
+	var scaleY = global.canvas.height / rect.height;
+	return {
+		x: (evt.clientX - rect.left) * scaleX,
+		y: (evt.clientY - rect.top)  * scaleY
+	};
+}
+
+function dist2(ax,ay,bx,by) {
+	var dx=ax-bx, dy=ay-by;
+	return dx*dx+dy*dy;
+}
+
+function findNearestDot(mx,my) {
+	var best=null, bestD=global.editHitRadius*global.editHitRadius;
+	for(var ring=0; ring<2; ring++) {
+		var xs = (ring==0)?outerXs:innerXs;
+		var ys = (ring==0)?outerYs:innerYs;
+		for(var i=0; i<xs.length; i++) {
+			var d=dist2(mx,my,xs[i],ys[i]);
+			if(d<=bestD) { bestD=d; best={ring: ring, ind: i}; }
+		}
+	}
+	return best;
+}
+
+function editMouseDown(evt) {
+	if(!global.editMode) return;
+	var p=mousePos(evt);
+	var hit=findNearestDot(p.x,p.y);
+	if(hit) {
+		global.dragging=hit;
+		console.log("Grabbed "+(hit.ring==0?"outer":"inner")+" #"+hit.ind);
+	}
+}
+
+function editMouseUp(evt) {
+	global.dragging=null;
+}
+
+function editMouseMove(evt) {
+	if(!global.editMode || !global.dragging) return;
+	var p=mousePos(evt);
+	var d=global.dragging;
+	var dx=p.x-global.centerX, dy=p.y-global.centerY;
+	var distPx=Math.sqrt(dx*dx+dy*dy);
+	var x_scale=(global.room_width/2)/global.increments;
+	var y_scale=(global.room_height/2)/global.increments;
+	var scale=Math.max(x_scale,y_scale);
+	var raw=Math.round(distPx/scale);
+	if(raw<1) raw=1;
+	if(raw>global.increments) raw=global.increments;
+	var otherVal=(d.ring==0)?innerPoints[d.ind]:outerPoints[d.ind];
+	if(d.ring==0) {
+		if(raw<=otherVal) raw=otherVal+1;
+		outerPoints[d.ind]=raw;
+	} else {
+		if(raw>=otherVal) raw=otherVal-1;
+		if(raw<1) raw=1;
+		innerPoints[d.ind]=raw;
+	}
+	recomputeCoords();
+	plotArrays(global.graphType);
+	drawEditHandles();
+}
+
+function drawEditHandles() {
+	var c=global.ctx;
+	for(var i=0;i<outerXs.length;i++) {
+		c.beginPath();
+		c.fillStyle='blue';
+		c.arc(outerXs[i],outerYs[i],6,0,2*Math.PI);
+		c.fill();
+		c.strokeStyle='white';
+		c.lineWidth=1;
+		c.stroke();
+		c.beginPath();
+		c.fillStyle='orange';
+		c.arc(innerXs[i],innerYs[i],6,0,2*Math.PI);
+		c.fill();
+		c.strokeStyle='white';
+		c.lineWidth=1;
+		c.stroke();
+	}
+	if(global.dragging) {
+		var d=global.dragging;
+		var xs=(d.ring==0)?outerXs:innerXs;
+		var ys=(d.ring==0)?outerYs:innerYs;
+		c.beginPath();
+		c.strokeStyle='yellow';
+		c.lineWidth=2;
+		c.arc(xs[d.ind],ys[d.ind],9,0,2*Math.PI);
+		c.stroke();
+	}
 }
 
 function getNumbersAsArray(globalSpokes, globalIncrements, promptPrefix) {
