@@ -8,19 +8,43 @@ global = {increments:16, spokes:16, showAddress: false, graphType: "radial", plo
 	global.fill=true;
 	global.lineWidth=1;
 	global.editMode=false;
+	global.BWFill=false;
+	global.filter=false;
 	loadData();
 
 global.patternImage = new Image();
 global.patternImage.src = 'hash.png'; // Replace with the correct path to your image
+global.patternImageLoaded = false;
+global.patternImage.onload = function() {
+	global.patternImageLoaded = true;
+	if (global.ctx) {
+		global.pattern = global.ctx.createPattern(global.patternImage, 'repeat');
+	}
+};
 
-	//state saved before entering edit mode
-	global.editSaved = null;
-	global.dragging = null;        // {ring:'outer'|'inner', ind:N, ringInd:N}
-	global.editHitRadius = 10;
+//state saved before entering edit mode
+global.editSaved = null;
+global.dragging = null;        // {ring:'outer'|'inner', ind:N, ringInd:N}
+global.editHitRadius = 10;
 
-	window.addEventListener('load', main);
-	window.addEventListener('keydown', keyDown, false);
-	// mouse listeners are attached in main() once canvas exists
+// Batch State
+let batchState = {
+	items: [],            // [{ index, chapterNum, fileName, outer, inner, raw, spokes, increments }]
+	activeEditIndex: null,// currently editing chapter index in main canvas
+	settings: {
+		usePreset: true,
+		lineWidth: 5,
+		fillStyle: 'bw',   // 'bw' or 'color'
+		radialdots: 2,     // 2: outer intersection only, 1: all, 0: none
+		outerCircle: false,
+		resolution: 600,
+		filePrefix: 'chapter',
+		startNumber: 1
+	}
+};
+
+window.addEventListener('load', main);
+window.addEventListener('keydown', keyDown, false);
 
 outerPoints=[];
 outerXs=[];
@@ -30,69 +54,54 @@ innerXs=[];
 innerYs=[];
 
 function copyTextToClipboard(textToCopy) {
-  // Create a temporary text area element
   const textArea = document.createElement('textarea');
   textArea.value = textToCopy;
-
-  // Make the text area unselectable to avoid focus
   textArea.style.position = 'fixed';
   textArea.style.top = '0';
   textArea.style.left = '0';
   textArea.style.opacity = '0';
-
-  // Append the text area to the body
   document.body.appendChild(textArea);
-
-  // Select the text
   textArea.select();
   textArea.setSelectionRange(0, textArea.value.length);
-
-  // Copy the text to the clipboard
   document.execCommand('copy');
-
-  // Remove the temporary text area
   document.body.removeChild(textArea);
 }
-
-
 
 function loadData(){
 	console.log("Loading data");
 	var storedData=localStorage.getItem("AddressMakerSettings");
-	// Parse JSON back to object
 	if (storedData) {
-		var decodedData = JSON.parse(storedData);
-		global=decodedData;
-		console.log(decodedData); // Access properties like decodedData.read, decodedData.color, etc.
+		try {
+			var decodedData = JSON.parse(storedData);
+			global = Object.assign(global, decodedData);
+			console.log(decodedData);
+		} catch (e) {
+			console.error("Error loading stored data", e);
+		}
 	} else {
 		console.log("No data found in local storage");
-		return;
 	}
 }
 
 function saveData(){
 	console.log("Saving Data");
-	console.log("Saving Data");
-	// Encode as JSON string
 	const encodedData = JSON.stringify(global);
-
-	// Store in local storage
 	localStorage.setItem("AddressMakerSettings", encodedData);
 }
 
 function main(){
-	//get canvas context to draw upon.
 	global.border=20;
 	global.canvas = document.getElementById('canvas');
 	global.room_width=canvas.width-global.border;
 	global.room_height=canvas.height-global.border;
 	global.centerX=canvas.width/2;
 	global.centerY=canvas.height/2;
-    global.ctx = global.canvas.getContext('2d');
+	global.ctx = global.canvas.getContext('2d');
 	
-	global.pattern=global.ctx.createPattern(global.patternImage, 'repeat');
+	if (global.patternImage.complete && global.patternImage.naturalWidth > 0) {
+		global.pattern = global.ctx.createPattern(global.patternImage, 'repeat');
+	}
 	
-	//attach mouse listeners for edit mode
 	global.canvas.addEventListener('mousedown', editMouseDown);
 	global.canvas.addEventListener('mousemove', editMouseMove);
 	global.canvas.addEventListener('mouseup',   editMouseUp);
@@ -101,23 +110,39 @@ function main(){
 	buildArrays(global.spokes);
 	plotArrays(global.graphType);
 	saveData();
-
 }
 
 function keyDown(evt) {
+	// If typing inside an input or textarea, ignore canvas hotkeys
+	if (evt.target && (evt.target.tagName === 'INPUT' || evt.target.tagName === 'TEXTAREA' || evt.target.tagName === 'SELECT')) {
+		if (evt.key === "Escape") {
+			evt.target.blur();
+			closeBatchModal();
+		}
+		return;
+	}
+
 	console.log("Keydown event: "+evt.key);
+
+	if (evt.key === "Escape") {
+		closeBatchModal();
+		return;
+	}
+
+	// Open Batch Modal on Shift+B ('B')
+	if (evt.key === "B") {
+		openBatchModal();
+		return;
+	}
 
 	if(evt.key == "e") {
 		global.ctx.clearRect(0, 0, canvas.width, canvas.height);
 		toggleEditMode();
-		//edit mode handles its own redraw; skip the generic redraw below
 		saveData();
 		return;
 	}
 
-	//while in edit mode, ignore every key except 'k' (copy)
 	if(global.editMode && evt.key != "k") {
-		//don't touch the canvas — just leave the edit-mode view as-is
 		return;
 	}
 
@@ -126,9 +151,9 @@ function keyDown(evt) {
 	if(evt.key == "r") {global.graphType="radial";}
 	if(evt.key == "a") {global.showAddress = ! global.showAddress;}
 	if(evt.key == " ") {buildArrays(global.spokes);}
-	if(evt.key == "s") {global.spokes--; buildArrays(global.spokes);}
+	if(evt.key == "s") {global.spokes=Math.max(3, global.spokes-1); buildArrays(global.spokes);}
 	if(evt.key == "S") {global.spokes++; buildArrays(global.spokes);}
-	if(evt.key == "i") {global.increments--; buildArrays(global.spokes);}
+	if(evt.key == "i") {global.increments=Math.max(2, global.increments-1); buildArrays(global.spokes);}
 	if(evt.key == "I") {global.increments++; buildArrays(global.spokes);}
 	if(evt.key == "o") {global.plotOrigin = ! global.plotOrigin; }
 	if(evt.key == "c") {global.circle= ! global.circle; }
@@ -147,12 +172,9 @@ function keyDown(evt) {
 		console.log("Sending to Clipboard: "+textToCopy);
 		copyTextToClipboard(textToCopy);
 		var notification = document.getElementById('notification');
-		// Show the notification
 		notification.style.visibility='visible';
-		console.log("showing notification")
 		setTimeout(() => {
 			notification.style.visibility='hidden';
-			console.log("removing notification");
 		}, 3000);
 	}
 
@@ -345,330 +367,289 @@ function drawEditHandles() {
 function getNumbersAsArray(globalSpokes, globalIncrements, promptPrefix) {
   const input = prompt(promptPrefix+"Enter "+globalSpokes+ " numbers from 1 to "+globalIncrements+" separated by commas");
   if (input === null) {
-    return null; // User canceled the input
+    return null;
   }
   const numbers = input.split(",");
-  // Filter out empty strings, non-numeric values, and numbers outside the range
   const validNumbers = numbers.filter(num => {
     return num !== "" && !isNaN(num) && Number(num) >= 1 && Number(num) <= globalIncrements;
   });
 
-  // Check if the number of valid numbers matches globalSpokes
   if (validNumbers.length !== globalSpokes) {
     alert(`Please enter exactly ${globalSpokes} numbers that are from 1 to ${globalIncrements}.`);
     return null;
   }
-  // Convert remaining strings to numbers
-  const numericArray = validNumbers.map(num => Number(num));
-  return numericArray;
+  return validNumbers.map(num => Number(num));
 }
 
 function getWholeAddressAsArray(globalSpokes, globalIncrements, promptPrefix) {
   const input = prompt("Enter a whole address on one line like: 'Outer: 9,10,12,15,14,2,16,3,9,3,15,8,5,15,16,5 Inner: 1,8,4,12,6,1,8,2,7,2,7,3,3,4,1,2'");
   if (input == null) {
-    return null; // User canceled the input
+    return null;
   }
-  console.log("received string: "+input);
-  const cleanedString = input.trim().replace(/^"/, '').replace(/"$/, '');
-  console.log("Cleaned string: "+cleanedString);
-  const [outerPart, innerPart] = cleanedString.split("Inner:");
+  return parseSingleAddressString(input, globalSpokes, globalIncrements);
+}
 
-  const outerNumbers = outerPart.split(":")[1].trim().split(",");
-  const outerArray = outerNumbers.map(Number);
-
-  const innerNumbers = innerPart.trim().split(",");
-  const innerArray = innerNumbers.map(Number);
-  console.log("innerNumbers: "+innerNumbers);
-  console.log("outerNumbers: "+outerNumbers);
+function parseSingleAddressString(str, expectedSpokes, expectedIncrements) {
+  if (!str) return null;
+  const cleanedString = str.trim().replace(/^"/, '').replace(/"$/, '');
+  const lower = cleanedString.toLowerCase();
   
-
-  // Filter out empty strings, non-numeric values, and numbers outside the range
-  var validNumbers = outerArray.filter(num => {
-    return num !== "" && !isNaN(num) && Number(num) >= 1 && Number(num) <= globalIncrements;
-  });
-  // Check if the number of valid numbers matches globalSpokes
-  if (validNumbers.length !== globalSpokes) {
-    alert(`Please enter exactly ${globalSpokes} numbers that are from 1 to ${globalIncrements}.`);
+  if (!lower.includes("inner:") && !lower.includes("outer:")) {
     return null;
   }
 
-  validNumbers = innerArray.filter(num => {
-    return num !== "" && !isNaN(num) && Number(num) >= 1 && Number(num) <= globalIncrements;
-  });
-
-  // Check if the number of valid numbers matches globalSpokes
-  if (validNumbers.length !== globalSpokes) {
-    alert(`Please enter exactly ${globalSpokes} numbers that are from 1 to ${globalIncrements}.`);
+  const innerIdx = lower.indexOf("inner:");
+  const outerIdx = lower.indexOf("outer:");
+  
+  let outerPart = "";
+  let innerPart = "";
+  
+  if (outerIdx !== -1 && innerIdx !== -1 && outerIdx < innerIdx) {
+    outerPart = cleanedString.substring(outerIdx + 6, innerIdx);
+    innerPart = cleanedString.substring(innerIdx + 6);
+  } else if (outerIdx !== -1 && innerIdx !== -1 && innerIdx < outerIdx) {
+    innerPart = cleanedString.substring(innerIdx + 6, outerIdx);
+    outerPart = cleanedString.substring(outerIdx + 6);
+  } else {
     return null;
   }
-  console.log("Returning two arrays: "+outerArray+" and "+innerArray);
-  return [ outerArray, innerArray ];
+
+  const outerNumbers = (outerPart.match(/\d+/g) || []).map(Number);
+  const innerNumbers = (innerPart.match(/\d+/g) || []).map(Number);
+
+  if (outerNumbers.length === 0 || innerNumbers.length === 0) {
+    return null;
+  }
+
+  if (expectedSpokes && (outerNumbers.length !== expectedSpokes || innerNumbers.length !== expectedSpokes)) {
+    return null;
+  }
+
+  return [outerNumbers, innerNumbers];
 }
 
+// ================= CORE RENDERING FUNCTION =================
+// Pure renderer usable by both main canvas and batch export offscreen canvases
+function drawAddressOnCanvas(targetCanvas, outerPts, innerPts, opts) {
+	const c = targetCanvas.getContext('2d');
+	const width = targetCanvas.width;
+	const height = targetCanvas.height;
+	const border = opts.border !== undefined ? opts.border : (width * (20 / 600));
+	const room_width = width - border;
+	const room_height = height - border;
+	const centerX = width / 2;
+	const centerY = height / 2;
+	
+	const spokes = opts.spokes || outerPts.length || 16;
+	const increments = opts.increments || 16;
+	const lineWidth = opts.lineWidth !== undefined ? opts.lineWidth : 1;
+	const BWFill = opts.BWFill !== undefined ? opts.BWFill : true;
+	const fill = opts.fill !== undefined ? opts.fill : true;
+	const radialdots = opts.radialdots !== undefined ? opts.radialdots : 0;
+	const circleOn = opts.circle || false;
+	const circlesOn = opts.circles || false;
+	const radialsOn = opts.radials || false;
+	const plotOriginOn = opts.plotOrigin || false;
+	const filterOn = opts.filter || false;
+	const graphType = opts.graphType || 'radial';
+	const showAddress = opts.showAddress || false;
 
+	c.clearRect(0, 0, width, height);
+	c.filter = 'none';
 
-function plotArrays(type){
-	//clear the canvas	
-	global.ctx.clearRect(0,0,global.room_width, global.room_height);
-	global.ctx.filter = 'none';
-
-	//draw the plot
-	if(type=="radial") { plotArraysRadial(); }
-	if(type=="linear") { plotArraysLinear(); }
-	printAddress();
-	if(global.plotOrigin) { plotOrigin(); }
-	if(global.filter) {
-		console.log("Applying filter");
-		// Apply the pencil sketch filter
-		global.ctx.filter = 'blur(1px) grayscale(1)';
-		// Redraw the canvas to apply the filter
-		global.ctx.drawImage(canvas, 0, 0);
+	// Prepare pattern
+	let pattern = null;
+	if (global.patternImage && global.patternImage.complete && global.patternImage.naturalWidth > 0) {
+		pattern = c.createPattern(global.patternImage, 'repeat');
 	}
+
+	const oXs = [];
+	const oYs = [];
+	const iXs = [];
+	const iYs = [];
+
+	if (graphType === "radial") {
+		let ind = 0;
+		const x_scale = (room_width / 2) / increments;
+		const y_scale = (room_height / 2) / increments;
+		
+		for (let i = 0; i < 360; i += (360 / spokes)) {
+			const outer = outerPts[ind] || 1;
+			const inner = innerPts[ind] || 1;
+			const rad = i * 0.0174533;
+			
+			oXs[ind] = centerX + (Math.sin(rad) * (outer * x_scale));
+			oYs[ind] = centerY + (Math.cos(rad) * (outer * y_scale));
+			iXs[ind] = centerX + (Math.sin(rad) * (inner * x_scale));
+			iYs[ind] = centerY + (Math.cos(rad) * (inner * y_scale));
+			ind++;
+		}
+
+		// Fill polygons
+		if (BWFill) {
+			// Outer polygon in white with black stroke
+			tracePolygon(c, oXs, oYs, 'white', 'black', lineWidth, fill);
+			// Inner polygon with hash pattern
+			tracePolygon(c, iXs, iYs, pattern || 'white', 'black', lineWidth, fill);
+		} else {
+			tracePolygon(c, oXs, oYs, 'red', 'black', lineWidth, fill);
+			tracePolygon(c, iXs, iYs, 'white', 'black', lineWidth, fill);
+		}
+
+		if (circleOn || circlesOn) {
+			drawCircleOutline(c, centerX, centerY, (room_height / 2) - (lineWidth / 2), 'black', lineWidth + 1);
+		}
+		if (circlesOn) {
+			const y_sc = (room_height / 2) / increments;
+			for (let i = 0; i < increments; i++) {
+				drawCircleOutline(c, centerX, centerY, i * y_sc, 'Thistle', 1);
+			}
+		}
+		if (radialsOn) {
+			const x_sc = (room_width / 2) / increments;
+			const y_sc = (room_height / 2) / increments;
+			for (let i = 0; i < 360; i += (360 / spokes)) {
+				const rad = i * 0.0174533;
+				const ox = centerX + (Math.sin(rad) * (increments * x_sc));
+				const oy = centerY + (Math.cos(rad) * (increments * y_sc));
+				c.beginPath();
+				c.strokeStyle = 'Thistle';
+				c.lineWidth = 1;
+				c.moveTo(centerX, centerY);
+				c.lineTo(ox, oy);
+				c.stroke();
+			}
+		}
+		if (radialdots > 0) {
+			const x_sc = (room_width / 2) / increments;
+			const y_sc = (room_height / 2) / increments;
+			let indDot = 0;
+			for (let i = 0; i < 360; i += (360 / spokes)) {
+				const outer = outerPts[indDot] || 1;
+				const rad = i * 0.0174533;
+				const ox = centerX + (Math.sin(rad) * (increments * x_sc));
+				const oy = centerY + (Math.cos(rad) * (increments * y_sc));
+				
+				if (outer === increments && radialdots === 2) {
+					drawFilledCircle(c, ox, oy, lineWidth * 2, 'black');
+				} else if (radialdots === 1) {
+					drawFilledCircle(c, ox, oy, lineWidth * 2, 'black');
+				}
+				indDot++;
+			}
+		}
+	} else if (graphType === "linear") {
+		let ind = 0;
+		const linear_x_scale = room_width / spokes;
+		const y_scale = (centerY) / increments;
+		while (ind < outerPts.length) {
+			oXs[ind] = (ind * linear_x_scale) + linear_x_scale / 2;
+			oYs[ind] = centerY - ((y_scale * increments) / 2) + (outerPts[ind] * y_scale);
+			iXs[ind] = (ind * linear_x_scale) + linear_x_scale / 2;
+			iYs[ind] = centerY - ((y_scale * increments) / 2) + (innerPts[ind] * y_scale);
+			ind++;
+		}
+		const revOuterXs = [...oXs].reverse();
+		const revOuterYs = [...oYs].reverse();
+		tracePolygon(c, iXs.concat(revOuterXs), iYs.concat(revOuterYs), 'red', 'black', lineWidth, fill);
+	}
+
+	if (plotOriginOn && oXs.length > 0 && iXs.length > 0) {
+		c.beginPath();
+		c.strokeStyle = 'black';
+		c.lineWidth = 1;
+		c.moveTo(oXs[0], oYs[0]);
+		c.lineTo(iXs[0], iYs[0]);
+		c.stroke();
+	}
+
+	if (showAddress) {
+		c.font = Math.round(width * (20 / 600)) + "px Arial";
+		c.fillStyle = "black";
+		c.textAlign = "center";
+		const outerAddr = "Outer: " + outerPts.join(",");
+		const innerAddr = "Inner: " + innerPts.join(",");
+		c.fillText(outerAddr, centerX, room_height - 25);
+		c.fillText(innerAddr, centerX, room_height);
+	}
+
+	if (filterOn) {
+		c.filter = 'blur(1px) grayscale(1)';
+		c.drawImage(targetCanvas, 0, 0);
+	}
+
+	return { oXs, oYs, iXs, iYs };
 }
 
-function plotOrigin() {
-	global.ctx.fillStyle = "black";
-	line(outerXs[0],outerYs[0],innerXs[0],innerYs[0])
+function tracePolygon(ctx, Xs, Ys, fillStyle, strokeColor, lineWidth, doFill) {
+	if (!Xs || Xs.length === 0) return;
+	ctx.beginPath();
+	ctx.moveTo(Xs[0], Ys[0]);
+	for (let i = 1; i < Xs.length; i++) {
+		ctx.lineTo(Xs[i], Ys[i]);
+	}
+	ctx.closePath();
+	if (doFill) {
+		ctx.fillStyle = fillStyle;
+		ctx.fill();
+	}
+	ctx.strokeStyle = strokeColor;
+	ctx.lineWidth = lineWidth;
+	ctx.stroke();
 }
 
+function drawCircleOutline(ctx, x, y, radius, color, thickness) {
+	ctx.beginPath();
+	ctx.strokeStyle = color;
+	ctx.lineWidth = thickness;
+	ctx.arc(x, y, Math.max(0, radius), 0, 2 * Math.PI);
+	ctx.stroke();
+}
+
+function drawFilledCircle(ctx, x, y, radius, color) {
+	ctx.beginPath();
+	ctx.fillStyle = color;
+	ctx.arc(x, y, Math.max(0, radius), 0, 2 * Math.PI);
+	ctx.fill();
+}
+
+// ================= MAIN CANVAS PLOT =================
+function plotArrays(type){
+	if (!global.canvas) return;
+	const res = drawAddressOnCanvas(global.canvas, outerPoints, innerPoints, {
+		border: global.border,
+		spokes: global.spokes,
+		increments: global.increments,
+		lineWidth: global.lineWidth,
+		BWFill: global.BWFill,
+		fill: global.fill,
+		radialdots: global.radialdots,
+		circle: global.circle,
+		circles: global.circles,
+		radials: global.radials,
+		plotOrigin: global.plotOrigin,
+		filter: global.filter,
+		graphType: global.graphType,
+		showAddress: global.showAddress
+	});
+
+	outerXs = res.oXs;
+	outerYs = res.oYs;
+	innerXs = res.iXs;
+	innerYs = res.iYs;
+
+	printAddress();
+}
 
 function printAddress(){
-	console.log("printing address");
-	global.ctx.font = "20px Arial";
-	global.ctx.fillStyle = "black";
-	global.ctx.textAlign = "center";
 	var outerAddr="Outer: "+outerPoints.join(",");	
 	var innerAddr="Inner: "+innerPoints.join(",");
 	var lineWidth="LineWidth: "+global.lineWidth;
-	document.getElementById("AdressText").innerHTML=outerAddr+"<br>"+innerAddr+"<br> Spokes: "+global.spokes+" Increments: "+global.increments+" "+lineWidth;
-	if(global.showAddress) {
-		global.ctx.fillText(outerAddr, global.centerX, global.room_height-25);
-		global.ctx.fillText(innerAddr, global.centerX, global.room_height);
+	var el = document.getElementById("AdressText");
+	if (el) {
+		el.innerHTML=outerAddr+"<br>"+innerAddr+"<br> Spokes: "+global.spokes+" Increments: "+global.increments+" "+lineWidth;
 	}
 }
-
-function plotArraysRadial(){
-	console.log("Plotting radial address");
-	ind=0;  //index for arrays from 0 to spokes.
-	
-	for (var i=0; i<360 ;i+=(360/global.spokes)) { // 16 steps around the circle 22.5 degrees
-		var outer = outerPoints[ind];
-		var inner = innerPoints[ind];
-		console.log("plotting: " + outer + " and " + inner);
-		var x_scale=(global.room_width/2)/global.increments;
-		var y_scale=(global.room_height/2)/global.increments;
-
-		outerX=(global.centerX)+(Math.sin(i*0.0174533)*(outer*x_scale));
-		outerY=(global.centerY)+(Math.cos(i*0.0174533)*(outer*y_scale));
-		outerXs[ind]=outerX;
-		outerYs[ind]=outerY;
-		//circle( outerX, outerY, "green");
-		
-		innerX=(global.centerX)+(Math.sin(i*0.0174533)*(inner*x_scale));
-		innerY=(global.centerY)+(Math.cos(i*0.0174533)*(inner*y_scale));
-		//circle(innerX , innerY, "red");
-		innerXs[ind]=innerX;
-		innerYs[ind]=innerY;
-		
-		ind++;
-	}
-
-	if(global.BWFill ){
-		traceAndFill(outerXs, outerYs, 'white', 'black');
-		//traceAndFillPattern(outerXs, outerYs, 'black');
-		//traceAndFill(innerXs, innerYs, 'white', 'black');
-		traceAndFillPattern(innerXs, innerYs, 'black');
-	} else {
-		traceAndFill(outerXs, outerYs, 'red', 'black');
-		traceAndFill(innerXs, innerYs, 'white', 'black');
-	}
-	
-	
-
-	if(global.circle == true) {
-		drawOuterCircle();
-	}
-	if(global.circles == true) {
-		drawCircles();
-		drawOuterCircle();
-	}
-	if(global.radials == true) {
-		drawRadials();
-	}
-	if(global.radialdots) {
-		drawRadialDots();
-	}
-	
-}
-
-function plotArraysLinear(){
-	console.log("Plotting linear address");
-	var ind=0;  //index for arrays from 0 to spokes.
-	var linear_x_scale=global.room_width/global.spokes;
-	var y_scale=(global.centerY)/global.increments;
-
-	while(ind < outerPoints.length) {
-		outerXs[ind] = (ind * linear_x_scale)+linear_x_scale/2;
-		outerYs[ind] = (global.centerY)-((y_scale*global.increments)/2)+(outerPoints[ind]*y_scale);
-		//circle(outerXs[ind],outerYs[ind],'black');
-		
-		innerXs[ind] = (ind * linear_x_scale)+linear_x_scale/2;
-		innerYs[ind] = (global.centerY)-((y_scale*global.increments)/2)+(innerPoints[ind]*y_scale);
-		//console.log("Inner coords: "+ innerXs[ind] +","+innerYs[ind]);
-		//circle(innerXs[ind],innerYs[ind],'yellow');
-		ind++;
-	}
-	
-	revOuterXs=outerXs;
-	revOuterYs=outerYs;
-	revOuterXs.reverse();
-	revOuterYs.reverse();
-	
-	traceAndFill(innerXs.concat(revOuterXs), innerYs.concat(revOuterYs), 'red', 'black');
-	//traceAndFill(innerXs, innerYs, 'red', 'black');
-	
-}
-
-function drawOuterCircle(){
-	circle(global.centerX, global.centerY, (global.room_height/2)-(global.lineWidth/2), 'black', global.lineWidth+1);
-	return;
-}
-
-function drawCircles() {
-	//draw the circles from center to outer in light gray
-	var y_scale=(global.room_height/2)/global.increments;
-	for (var i=0; i<global.increments ;i++) {
-		circle(global.centerX, global.centerY, i*y_scale, 'Thistle', 1);
-	
-	}
-}
-
-function drawRadials(){
-	var x_scale=(global.room_width/2)/global.increments;
-	var y_scale=(global.room_height/2)/global.increments;
-	for (var i=0; i<360 ;i+=(360/global.spokes)) {
-		outerX=(global.centerX)+(Math.sin(i*0.0174533)*(global.increments*x_scale));
-		outerY=(global.centerY)+(Math.cos(i*0.0174533)*(global.increments*y_scale));
-		global.ctx.strokeStyle = 'Thistle'; 
-		global.ctx.lineWidth   = 1;
-		line(global.centerX,global.centerY,outerX,outerY);
-	}	
-}
-
-function drawRadialDots(){
-	var x_scale=(global.room_width/2)/global.increments;
-	var y_scale=(global.room_height/2)/global.increments;
-	var ind=0;
-	for (var i=0; i<360 ;i+=(360/global.spokes)) {
-		outer = outerPoints[ind];
-		//console.log("outer=" + outer);
-		//console.log("global.increments=" + global.increments);
-
-		outerX=(global.centerX)+(Math.sin(i*0.0174533)*(global.increments*x_scale));
-		outerY=(global.centerY)+(Math.cos(i*0.0174533)*(global.increments*y_scale));
-		//global.ctx.strokeStyle = 'Thistle'; 
-		global.ctx.lineWidth   = 1;
-		//line(global.room_width/2,global.room_height/2,outerX,outerY);
-		if(outer==global.increments && global.radialdots == 2) { //only draw where the radial is max (touches the circle)
-			filledCircle(outerX,outerY, global.lineWidth*2, 'black',1);
-		}
-		if(global.radialdots ==1 )		{ //draww all dots
-			filledCircle(outerX,outerY, global.lineWidth*2, 'black',1);
-		}
-		ind++;
-	}		
-}
-
-
-function traceAndFill(Xs, Ys, fillColor, lineColor){
-    global.ctx.fillStyle = fillColor;
-    global.ctx.beginPath();     //Begin a path..
-    global.ctx.moveTo(Xs[0], Ys[0]);  //Startpoint (x1, y1)
-	var i=1;
-	while( i < Xs.length ) {
-		global.ctx.lineTo(Xs[i], Ys[i]); //Point i    (x, y)
-		i++;
-	}
-    global.ctx.closePath();     //Close the path.
-    //Fill triangle with previous set color.
-    if(global.fill) {
-		//global.ctx.fillStyle=global.pattern;
-		global.ctx.fill(); 
-	}
-    //Give triangle a stroke (width: 4 pixels).
-    global.ctx.strokeStyle = lineColor;
-    global.ctx.lineWidth   = global.lineWidth;
-    global.ctx.stroke();
-}
-
-function traceAndFillPattern(Xs, Ys, lineColor){
-    global.ctx.fillStyle = global.pattern;
-    global.ctx.beginPath();     //Begin a path..
-    global.ctx.moveTo(Xs[0], Ys[0]);  //Startpoint (x1, y1)
-	var i=1;
-	while( i < Xs.length ) {
-		global.ctx.lineTo(Xs[i], Ys[i]); //Point i    (x, y)
-		i++;
-	}
-    global.ctx.closePath();     //Close the path.
-    //Fill triangle with previous set color.
-    if(global.fill) {
-		global.ctx.fill(); 
-	}
-    //Give triangle a stroke (width: 4 pixels).
-    global.ctx.strokeStyle = lineColor;
-    global.ctx.lineWidth   = global.lineWidth;
-    global.ctx.stroke();
-}
-
-
-function circle (x, y, radius, color, thickness){
-	global.ctx.beginPath();
-	global.ctx.strokeStyle = color; 
-	global.ctx.lineWidth = thickness;
-	global.ctx.arc(x,y,radius, 0, 2 * Math.PI);
-	global.ctx.stroke();
-	return;
-}
-
-function filledCircle(x, y, radius, color, thickness) {
-    console.log("Drawing a filled circle");
-    global.ctx.beginPath();
-    global.ctx.fillStyle = color;
-    global.ctx.lineWidth = thickness;
-    global.ctx.arc(x, y, radius, 0, 2 * Math.PI);
-    global.ctx.fill();
-    return;
-}
-
-
-
-function line(x1,y1,x2,y2) {
-	global.ctx.beginPath(); // Start a new path
-	global.ctx.moveTo(x1,y1); // Move the pen to (30, 50)
-	global.ctx.lineTo(x2, y2); // Draw a line to (150, 100)
-	global.ctx.stroke(); // Render the path
-	
-}
-
-
-
-
-function triangle(x1,y1,x2,y2,x3,y3,color){
-    global.ctx.fillStyle = color;
-    global.ctx.beginPath();     //Begin a path..
-    global.ctx.moveTo(x1, y1);  //Startpoint (x1, y1)
-    global.ctx.lineTo(x2, y2); //Point 1    (x, y)
-    global.ctx.lineTo(x3, y3);  //Point 2    (x, y)
-    global.ctx.closePath();     //Close the path.
-    //Fill triangle with previous set color.
-    global.ctx.fill();
-    //Give triangle a stroke (width: 4 pixels).
-    global.ctx.strokeStyle = 'black';
-    global.ctx.lineWidth   = 1;
-    global.ctx.stroke();
-}
-
 
 function buildArrays(points){
 	outerPoints=[];
@@ -691,35 +672,8 @@ function buildArrays(points){
 		}
 		outerPoints.push(out);
 		innerPoints.push(ins);
-		console.log("Outer = " + out + "\nInner = "+ins );
 	}
 }
-
-
-
-function drawAddress(){
-    var canvas = document.getElementById('canvas');
-    var c = canvas.getContext('2d');
-    drawTriangle(c,50, 25,100, 50,50, 75,"yellow");
-	//create a list of dots
-	
-} 
-
-function drawTriangle(c,x1,y1,x2,y2,x3,y3,color){
-    c.fillStyle = color;
-    c.beginPath();     //Begin a path..
-    c.moveTo(x1, y1);  //Startpoint (x1, y1)
-    c.lineTo(x2, y2); //Point 1    (x, y)
-    c.lineTo(x3, y3);  //Point 2    (x, y)
-    c.closePath();     //Close the path.
-    //Fill triangle with previous set color.
-    c.fill();
-    //Give triangle a stroke (width: 4 pixels).
-    c.strokeStyle = 'red'
-    c.lineWidth   = 1;
-    c.stroke();
-}
-
 
 function irandom(max){
 	return getRandomIntInclusive(0,max);
@@ -728,5 +682,400 @@ function irandom(max){
 function getRandomIntInclusive(min, max) {
   min = Math.ceil(min);
   max = Math.floor(max);
-  return Math.floor(Math.random() * (max - min + 1) + min); // The maximum is inclusive and the minimum is inclusive
+  return Math.floor(Math.random() * (max - min + 1) + min);
+}
+
+// ================= BATCH EXPORTER LOGIC =================
+
+function openBatchModal() {
+	const modal = document.getElementById('batchModal');
+	if (modal) {
+		modal.classList.remove('hidden');
+		const textarea = document.getElementById('batchAddressesText');
+		if (textarea && !textarea.value.trim() && batchState.items.length === 0) {
+			textarea.focus();
+		}
+	}
+}
+
+function closeBatchModal() {
+	const modal = document.getElementById('batchModal');
+	if (modal) {
+		modal.classList.add('hidden');
+	}
+}
+
+function togglePresetMode() {
+	const usePreset = document.getElementById('usePresetCheck').checked;
+	batchState.settings.usePreset = usePreset;
+	const fields = document.getElementById('customSettingsFields');
+	if (fields) {
+		if (usePreset) {
+			fields.classList.add('disabled');
+			document.getElementById('batchLineWidth').value = 5;
+			document.getElementById('batchFillStyle').value = 'bw';
+			document.getElementById('batchRadialDots').value = '2';
+			document.getElementById('batchOuterCircle').checked = false;
+		} else {
+			fields.classList.remove('disabled');
+		}
+	}
+	if (batchState.items.length > 0) {
+		renderBatchPreviews();
+	}
+}
+
+function updateBatchSetting() {
+	batchState.settings.lineWidth = parseInt(document.getElementById('batchLineWidth').value) || 5;
+	batchState.settings.fillStyle = document.getElementById('batchFillStyle').value;
+	batchState.settings.radialdots = parseInt(document.getElementById('batchRadialDots').value) || 0;
+	batchState.settings.outerCircle = document.getElementById('batchOuterCircle').checked;
+	batchState.settings.resolution = parseInt(document.getElementById('batchResolution').value) || 600;
+	batchState.settings.filePrefix = document.getElementById('batchFilePrefix').value.trim() || 'chapter';
+	batchState.settings.startNumber = parseInt(document.getElementById('batchStartNumber').value) || 1;
+
+	if (batchState.items.length > 0) {
+		// Update item names based on new prefix / start number
+		batchState.items.forEach((item, index) => {
+			const num = batchState.settings.startNumber + index;
+			item.chapterNum = num;
+			item.fileName = `${batchState.settings.filePrefix}${num}`;
+		});
+		renderBatchPreviews();
+	}
+}
+
+function getBatchRenderOptions() {
+	if (batchState.settings.usePreset) {
+		return {
+			lineWidth: 5,
+			BWFill: true,
+			fill: true,
+			radialdots: 2,
+			circle: false,
+			circles: false,
+			radials: false,
+			plotOrigin: false,
+			filter: false,
+			graphType: 'radial',
+			border: 20
+		};
+	} else {
+		return {
+			lineWidth: batchState.settings.lineWidth,
+			BWFill: batchState.settings.fillStyle === 'bw',
+			fill: true,
+			radialdots: batchState.settings.radialdots,
+			circle: batchState.settings.outerCircle,
+			circles: false,
+			radials: false,
+			plotOrigin: false,
+			filter: false,
+			graphType: 'radial',
+			border: 20
+		};
+	}
+}
+
+function parseBatchInputText(rawText) {
+	if (!rawText) return [];
+	const lines = rawText.split(/\r?\n/);
+	const parsedItems = [];
+	let currentNum = batchState.settings.startNumber || 1;
+
+	for (let i = 0; i < lines.length; i++) {
+		const line = lines[i].trim();
+		if (!line) continue;
+
+		// Extract address arrays from line
+		const addressPair = parseSingleAddressString(line);
+		if (addressPair && addressPair[0].length > 0 && addressPair[1].length > 0) {
+			const outer = addressPair[0];
+			const inner = addressPair[1];
+			const spokes = outer.length;
+			const maxVal = Math.max(...outer, ...inner);
+			const increments = Math.max(16, maxVal);
+
+			parsedItems.push({
+				index: parsedItems.length,
+				chapterNum: currentNum,
+				fileName: `${batchState.settings.filePrefix || 'chapter'}${currentNum}`,
+				outer: outer,
+				inner: inner,
+				spokes: spokes,
+				increments: increments,
+				raw: line
+			});
+			currentNum++;
+		}
+	}
+	return parsedItems;
+}
+
+function parseAndPreviewBatch() {
+	const rawText = document.getElementById('batchAddressesText').value;
+	batchState.items = parseBatchInputText(rawText);
+
+	const badge = document.getElementById('batchCountBadge');
+	const downloadBtn = document.getElementById('downloadZipBtn');
+	const statusMsg = document.getElementById('exportStatusMsg');
+
+	if (batchState.items.length === 0) {
+		badge.textContent = `0 chapters detected`;
+		badge.style.background = '#f8d7da';
+		badge.style.color = '#842029';
+		downloadBtn.disabled = true;
+		statusMsg.textContent = 'No valid address lines found. Format: Outer: ... Inner: ...';
+		document.getElementById('batchPreviewGrid').innerHTML = `
+			<div class="empty-preview-prompt">
+				No valid addresses found in input. Make sure rows contain <code>Outer: ... Inner: ...</code>.
+			</div>`;
+		return;
+	}
+
+	badge.textContent = `${batchState.items.length} chapters detected`;
+	badge.style.background = '#d1e7dd';
+	badge.style.color = '#0f5132';
+	downloadBtn.disabled = false;
+	statusMsg.textContent = `Generated ${batchState.items.length} chapter previews. Ready to export.`;
+
+	renderBatchPreviews();
+}
+
+function renderBatchPreviews() {
+	const grid = document.getElementById('batchPreviewGrid');
+	grid.innerHTML = '';
+
+	const renderOpts = getBatchRenderOptions();
+	const thumbSize = 200;
+
+	batchState.items.forEach((item, idx) => {
+		const card = document.createElement('div');
+		card.className = 'chapter-card';
+		card.id = `chapter-card-${idx}`;
+
+		const header = document.createElement('div');
+		header.className = 'chapter-card-header';
+		header.textContent = `Chapter ${item.chapterNum} (${item.fileName}.png)`;
+
+		const canvas = document.createElement('canvas');
+		canvas.width = thumbSize;
+		canvas.height = thumbSize;
+		canvas.className = 'chapter-thumbnail';
+		canvas.title = `Outer: ${item.outer.join(',')}\nInner: ${item.inner.join(',')}`;
+
+		// Draw preview on thumbnail canvas
+		drawAddressOnCanvas(canvas, item.outer, item.inner, {
+			...renderOpts,
+			border: thumbSize * (20 / 600),
+			spokes: item.spokes,
+			increments: item.increments
+		});
+
+		const actions = document.createElement('div');
+		actions.className = 'chapter-actions';
+
+		const editBtn = document.createElement('button');
+		editBtn.className = 'small-btn';
+		editBtn.textContent = '✏️ Edit';
+		editBtn.title = 'Load into Main Canvas to tweak';
+		editBtn.onclick = () => loadChapterIntoMainCanvas(idx);
+
+		const downloadBtn = document.createElement('button');
+		downloadBtn.className = 'small-btn';
+		downloadBtn.textContent = '💾 PNG';
+		downloadBtn.title = `Download ${item.fileName}.png`;
+		downloadBtn.onclick = () => downloadSingleChapter(idx);
+
+		actions.appendChild(editBtn);
+		actions.appendChild(downloadBtn);
+
+		card.appendChild(header);
+		card.appendChild(canvas);
+		card.appendChild(actions);
+		grid.appendChild(card);
+	});
+}
+
+function downloadSingleChapter(index) {
+	const item = batchState.items[index];
+	if (!item) return;
+
+	const exportResolution = batchState.settings.resolution || 600;
+	const offCanvas = document.createElement('canvas');
+	offCanvas.width = exportResolution;
+	offCanvas.height = exportResolution;
+
+	const renderOpts = getBatchRenderOptions();
+	drawAddressOnCanvas(offCanvas, item.outer, item.inner, {
+		...renderOpts,
+		border: exportResolution * (20 / 600),
+		spokes: item.spokes,
+		increments: item.increments
+	});
+
+	const dataUrl = offCanvas.toDataURL('image/png');
+	const a = document.createElement('a');
+	a.href = dataUrl;
+	a.download = `${item.fileName}.png`;
+	document.body.appendChild(a);
+	a.click();
+	document.body.removeChild(a);
+}
+
+async function downloadAllChaptersZip() {
+	if (!window.JSZip) {
+		alert('JSZip library is not loaded. Please ensure jszip.min.js is in the folder.');
+		return;
+	}
+	if (batchState.items.length === 0) {
+		alert('No chapters to export. Please paste addresses and generate previews first.');
+		return;
+	}
+
+	const downloadBtn = document.getElementById('downloadZipBtn');
+	const statusMsg = document.getElementById('exportStatusMsg');
+	const originalBtnText = downloadBtn.innerHTML;
+
+	downloadBtn.disabled = true;
+	downloadBtn.innerHTML = '⏳ Building ZIP...';
+	statusMsg.textContent = 'Rendering chapters at full resolution...';
+
+	try {
+		const zip = new JSZip();
+		const exportResolution = batchState.settings.resolution || 600;
+		const renderOpts = getBatchRenderOptions();
+
+		for (let i = 0; i < batchState.items.length; i++) {
+			const item = batchState.items[i];
+			statusMsg.textContent = `Rendering chapter ${item.chapterNum} of ${batchState.items.length}...`;
+
+			const offCanvas = document.createElement('canvas');
+			offCanvas.width = exportResolution;
+			offCanvas.height = exportResolution;
+
+			drawAddressOnCanvas(offCanvas, item.outer, item.inner, {
+				...renderOpts,
+				border: exportResolution * (20 / 600),
+				spokes: item.spokes,
+				increments: item.increments
+			});
+
+			const dataUrl = offCanvas.toDataURL('image/png');
+			const base64Data = dataUrl.replace(/^data:image\/png;base64,/, '');
+			zip.file(`${item.fileName}.png`, base64Data, { base64: true });
+		}
+
+		statusMsg.textContent = 'Compressing into chapters.zip...';
+		const content = await zip.generateAsync({ type: 'blob' });
+
+		const blobUrl = URL.createObjectURL(content);
+		const a = document.createElement('a');
+		a.href = blobUrl;
+		a.download = 'chapters.zip';
+		document.body.appendChild(a);
+		a.click();
+		document.body.removeChild(a);
+		setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+
+		statusMsg.textContent = `✅ Successfully exported ${batchState.items.length} chapters to chapters.zip!`;
+	} catch (err) {
+		console.error('Error generating zip:', err);
+		statusMsg.textContent = `❌ Error exporting zip: ${err.message}`;
+		alert('Failed to generate ZIP: ' + err.message);
+	} finally {
+		downloadBtn.disabled = false;
+		downloadBtn.innerHTML = originalBtnText;
+	}
+}
+
+function loadChapterIntoMainCanvas(index) {
+	const item = batchState.items[index];
+	if (!item) return;
+
+	batchState.activeEditIndex = index;
+	outerPoints = [...item.outer];
+	innerPoints = [...item.inner];
+	global.spokes = item.spokes;
+	global.increments = item.increments;
+
+	// Apply chapter art preset settings to main canvas if preset mode is active
+	if (batchState.settings.usePreset) {
+		global.BWFill = true;
+		global.fill = true;
+		global.lineWidth = 5;
+		global.radialdots = 2;
+		global.circle = false;
+		global.circles = false;
+		global.radials = false;
+		global.graphType = 'radial';
+	}
+
+	recomputeCoords();
+	plotArrays(global.graphType);
+	closeBatchModal();
+
+	// Show sync banner on main screen
+	const banner = document.getElementById('BatchEditBanner');
+	const msg = document.getElementById('BatchEditMsg');
+	if (banner && msg) {
+		banner.classList.remove('hidden');
+		msg.textContent = `✏️ Editing Chapter ${item.chapterNum} (${item.fileName})`;
+	}
+}
+
+function saveBatchEditToChapter() {
+	if (batchState.activeEditIndex === null || !batchState.items[batchState.activeEditIndex]) {
+		alert('No active chapter being edited from batch.');
+		return;
+	}
+
+	const item = batchState.items[batchState.activeEditIndex];
+	item.outer = [...outerPoints];
+	item.inner = [...innerPoints];
+	item.spokes = global.spokes;
+	item.increments = global.increments;
+
+	// Rebuild raw string
+	item.raw = `Outer: ${item.outer.join(',')} Inner: ${item.inner.join(',')}`;
+
+	// Update textarea in modal to reflect changes
+	updateBatchTextareaFromItems();
+
+	// Show brief notification
+	const notification = document.getElementById('notification');
+	notification.textContent = `Saved edits to Chapter ${item.chapterNum}!`;
+	notification.style.visibility = 'visible';
+	setTimeout(() => {
+		notification.style.visibility = 'hidden';
+		notification.textContent = 'Address copied!';
+	}, 2500);
+
+	renderBatchPreviews();
+}
+
+function updateBatchTextareaFromItems() {
+	const textarea = document.getElementById('batchAddressesText');
+	if (textarea && batchState.items.length > 0) {
+		textarea.value = batchState.items.map(item => `Outer: ${item.outer.join(',')} Inner: ${item.inner.join(',')}`).join('\n');
+	}
+}
+
+function loadSampleBatchData() {
+	const sampleData = `Outer: 9,10,12,15,14,2,16,3,9,3,15,8,5,15,16,5 Inner: 1,8,4,12,6,1,8,2,7,2,7,3,3,4,1,2
+Outer: 10,14,16,15,12,14,15,11,10,14,12,14,15,16,12,15 Inner: 6,10,3,9,8,1,4,8,4,3,2,6,1,7,4,9
+Outer: 15,11,13,16,14,15,14,13,15,16,12,14,15,13,15,14 Inner: 3,7,2,5,7,1,8,9,3,4,8,6,2,5,8,1
+Outer: 16,12,15,14,13,15,16,12,14,15,13,15,14,16,15,12 Inner: 4,8,1,6,5,2,7,8,2,3,7,5,1,4,7,3`;
+	
+	document.getElementById('batchAddressesText').value = sampleData;
+	parseAndPreviewBatch();
+}
+
+function clearBatch() {
+	document.getElementById('batchAddressesText').value = '';
+	batchState.items = [];
+	batchState.activeEditIndex = null;
+	const banner = document.getElementById('BatchEditBanner');
+	if (banner) banner.classList.add('hidden');
+	parseAndPreviewBatch();
 }
