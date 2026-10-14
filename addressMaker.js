@@ -2,11 +2,11 @@ const message = '' // Try edit me
 //use this URL to fill with hashmarks: https://stackoverflow.com/questions/17518107/creating-html5-canvas-patterns-and-filling-stuff-with-them 
 
 global = {increments:16, spokes:16, showAddress: false, graphType: "radial", plotOrigin: false, radialdots: 0};
-	global.circle=false;
+	global.circle=true;
 	global.circles=false;
 	global.radials=false;
 	global.fill=true;
-	global.lineWidth=1;
+	global.lineWidth=4;
 	global.editMode=false;
 	global.BWFill=false;
 	global.filter=false;
@@ -999,7 +999,7 @@ function loadChapterIntoMainCanvas(index) {
 	global.spokes = item.spokes;
 	global.increments = item.increments;
 
-	// Apply chapter art preset settings to main canvas if preset mode is active
+	// Apply chapter art preset settings or custom batch settings to main canvas
 	if (batchState.settings.usePreset) {
 		global.BWFill = true;
 		global.fill = true;
@@ -1009,6 +1009,15 @@ function loadChapterIntoMainCanvas(index) {
 		global.circles = false;
 		global.radials = false;
 		global.graphType = 'radial';
+	} else {
+		global.BWFill = batchState.settings.fillStyle === 'bw';
+		global.fill = true; // Always fill
+		global.lineWidth = batchState.settings.lineWidth;
+		global.radialdots = batchState.settings.radialdots;
+		global.circle = batchState.settings.outerCircle;
+		global.circles = false; // Always false for single edit
+		global.radials = false; // Always false for single edit
+		global.graphType = 'radial'; // Always radial for chapter art
 	}
 
 	recomputeCoords();
@@ -1071,11 +1080,64 @@ Outer: 16,12,15,14,13,15,16,12,14,15,13,15,14,16,15,12 Inner: 4,8,1,6,5,2,7,8,2,
 	parseAndPreviewBatch();
 }
 
-function clearBatch() {
-	document.getElementById('batchAddressesText').value = '';
-	batchState.items = [];
-	batchState.activeEditIndex = null;
-	const banner = document.getElementById('BatchEditBanner');
-	if (banner) banner.classList.add('hidden');
-	parseAndPreviewBatch();
+
+function saveBatchProjectToFile() {
+  const data = {
+    addresses: document.getElementById('batchAddressesText').value,
+    settings: batchState.settings
+  };
+  const json = JSON.stringify(data, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'addressMaker_project.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
+  const notification = document.getElementById('exportStatusMsg');
+  notification.textContent = 'Project settings saved to addressMaker_project.json!';
+  setTimeout(() => { notification.textContent = 'Ready to generate.'; }, 3000);
 }
+
+function loadBatchProjectFromFile(event) {
+  const file = event.target.files[0];
+  if (!file) {
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (data.addresses) {
+        document.getElementById('batchAddressesText').value = data.addresses;
+      }
+      if (data.settings) {
+        batchState.settings = { ...batchState.settings, ...data.settings };
+        // Update UI elements based on loaded settings
+        document.getElementById('usePresetCheck').checked = batchState.settings.usePreset;
+        document.getElementById('batchLineWidth').value = batchState.settings.lineWidth;
+        document.getElementById('batchFillStyle').value = batchState.settings.fillStyle;
+        document.getElementById('batchRadialDots').value = batchState.settings.radialdots;
+        document.getElementById('batchOuterCircle').checked = batchState.settings.outerCircle;
+        document.getElementById('batchResolution').value = batchState.settings.resolution;
+        document.getElementById('batchFilePrefix').value = batchState.settings.filePrefix;
+        document.getElementById('batchStartNumber').value = batchState.settings.startNumber;
+        togglePresetMode(); // Re-apply preset mode visual state
+      }
+      parseAndPreviewBatch();
+      const notification = document.getElementById('exportStatusMsg');
+      notification.textContent = 'Project settings loaded successfully!';
+      setTimeout(() => { notification.textContent = 'Ready to generate.'; }, 3000);
+    } catch (error) {
+      console.error('Error loading project file:', error);
+      alert('Failed to load project file. Please ensure it\'s a valid JSON.');
+      const notification = document.getElementById('exportStatusMsg');
+      notification.textContent = 'Error loading project file.';
+      setTimeout(() => { notification.textContent = 'Ready to generate.'; }, 3000);
+    }
+  };
+  reader.readAsText(file);
+}
+

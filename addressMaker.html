@@ -119,10 +119,18 @@
 
         <div class="modal-body">
           <div class="batch-input-section">
-            <label for="batchAddressesText" class="section-label">
-              <strong>Paste Google Sheet Address Column / List</strong>
-              <span class="sublabel">(One row per chapter, e.g. Outer: ... Inner: ...)</span>
-            </label>
+            <div style="display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px;">
+              <label for="batchAddressesText" class="section-label">
+                <strong>Paste Google Sheet Address Column / List</strong>
+                <span class="sublabel">(One row per chapter, e.g. Outer: ... Inner: ...)</span>
+              </label>
+              <div class="project-actions">
+                <button class="secondary-btn project-btn" onclick="saveBatchProjectToFile()" title="Save addresses and settings to a JSON file">💾 Save Project (.json)</button>
+                <button class="secondary-btn project-btn" onclick="document.getElementById('batchProjectFileInput').click()" title="Load previously saved project JSON">📂 Load Project (.json)</button>
+                <input type="file" id="batchProjectFileInput" accept=".json" style="display:none;" onchange="loadBatchProjectFromFile(event)">
+              </div>
+            </div>
+
             <textarea id="batchAddressesText" rows="6" placeholder="Paste Column F or addresses here...
 Example:
 Outer: 9,10,12,15,14,2,16,3,9,3,15,8,5,15,16,5 Inner: 1,8,4,12,6,1,8,2,7,2,7,3,3,4,1,2
@@ -142,14 +150,14 @@ Outer: 10,14,16,15,12,14,15,11,10,14,12,14,15,16,12,15 Inner: 6,10,3,9,8,1,4,8,4
               <strong>Render Settings</strong>
               <label class="preset-toggle">
                 <input type="checkbox" id="usePresetCheck" checked onchange="togglePresetMode()">
-                <span>Use Book Chapter Preset (B&amp;W Hash, LineWidth 5, Outer Intersection Dots)</span>
+                <span>Use Book Chapter Preset (B&amp;W Hash, LineWidth 4, Outer Intersection Dots, Outer Circle)</span>
               </label>
             </div>
             
             <div id="customSettingsFields" class="settings-fields disabled">
               <div class="setting-item">
                 <label>Line Width:</label>
-                <input type="number" id="batchLineWidth" value="5" min="1" max="20" onchange="updateBatchSetting()">
+                <input type="number" id="batchLineWidth" value="4" min="1" max="20" onchange="updateBatchSetting()">
               </div>
               <div class="setting-item">
                 <label>Style:</label>
@@ -168,7 +176,7 @@ Outer: 10,14,16,15,12,14,15,11,10,14,12,14,15,16,12,15 Inner: 6,10,3,9,8,1,4,8,4
               </div>
               <div class="setting-item">
                 <label>Outer Circle:</label>
-                <input type="checkbox" id="batchOuterCircle" onchange="updateBatchSetting()">
+                <input type="checkbox" id="batchOuterCircle" checked onchange="updateBatchSetting()">
               </div>
               <div class="setting-item">
                 <label>Image Size:</label>
