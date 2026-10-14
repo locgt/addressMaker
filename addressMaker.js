@@ -687,7 +687,62 @@ function getRandomIntInclusive(min, max) {
 
 // ================= BATCH EXPORTER LOGIC =================
 
+let preBatchCanvasState = null;
+
+function savePreBatchCanvasState() {
+	if (!preBatchCanvasState) {
+		preBatchCanvasState = {
+			outer: [...outerPoints],
+			inner: [...innerPoints],
+			spokes: global.spokes,
+			increments: global.increments,
+			BWFill: global.BWFill,
+			fill: global.fill,
+			lineWidth: global.lineWidth,
+			radialdots: global.radialdots,
+			circle: global.circle,
+			circles: global.circles,
+			radials: global.radials,
+			plotOrigin: global.plotOrigin,
+			filter: global.filter,
+			graphType: global.graphType
+		};
+	}
+}
+
+function restorePreBatchCanvasState() {
+	if (preBatchCanvasState) {
+		outerPoints = [...preBatchCanvasState.outer];
+		innerPoints = [...preBatchCanvasState.inner];
+		global.spokes = preBatchCanvasState.spokes;
+		global.increments = preBatchCanvasState.increments;
+		global.BWFill = preBatchCanvasState.BWFill;
+		global.fill = preBatchCanvasState.fill;
+		global.lineWidth = preBatchCanvasState.lineWidth;
+		global.radialdots = preBatchCanvasState.radialdots;
+		global.circle = preBatchCanvasState.circle;
+		global.circles = preBatchCanvasState.circles;
+		global.radials = preBatchCanvasState.radials;
+		global.plotOrigin = preBatchCanvasState.plotOrigin;
+		global.filter = preBatchCanvasState.filter;
+		global.graphType = preBatchCanvasState.graphType;
+		preBatchCanvasState = null;
+	}
+	recomputeCoords();
+	plotArrays(global.graphType);
+}
+
+function exitBatchEditMode() {
+	batchState.activeEditIndex = null;
+	const banner = document.getElementById('BatchEditBanner');
+	if (banner) {
+		banner.classList.add('hidden');
+	}
+	restorePreBatchCanvasState();
+}
+
 function openBatchModal() {
+	savePreBatchCanvasState();
 	const modal = document.getElementById('batchModal');
 	if (modal) {
 		modal.classList.remove('hidden');
@@ -703,6 +758,7 @@ function closeBatchModal() {
 	if (modal) {
 		modal.classList.add('hidden');
 	}
+	exitBatchEditMode();
 }
 
 function togglePresetMode() {
@@ -1014,7 +1070,11 @@ function loadChapterIntoMainCanvas(index) {
 
 	recomputeCoords();
 	plotArrays(global.graphType);
-	closeBatchModal();
+	
+	const modal = document.getElementById('batchModal');
+	if (modal) {
+		modal.classList.add('hidden');
+	}
 
 	// Show sync banner on main screen
 	const banner = document.getElementById('BatchEditBanner');
