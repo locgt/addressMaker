@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Address Maker - Chapter Art Generator</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="jszip.min.js"></script>
+  </head>
+  <body>
+    <h1 id="header">Address Maker</h1>
+
+    <div style="text-align:center; margin-bottom: 12px;">
+      <button id="openBatchBtn" class="primary-btn" onclick="openBatchModal()">
+        📖 Batch Chapter Exporter
+      </button>
+    </div>
+
+    <!-- Active Batch Sync Banner (visible when editing a chapter in main canvas) -->
+    <div id="BatchEditBanner" class="batch-sync-banner hidden">
+      <span id="BatchEditMsg">Editing Chapter 1</span>
+      <button class="small-btn save-btn" onclick="saveBatchEditToChapter()">💾 Save Changes to Batch</button>
+      <button class="small-btn" onclick="openBatchModal()">🔙 Return to Batch List</button>
+    </div>
+
+    <div style="text-align:center;">
+      <canvas id="canvas" width="600" height="600" style="border:0px solid red;"></canvas>
+      <p id="AdressText">Address:</p>
+      <p id="EditBanner" style="color:blue; font-weight:bold; visibility:hidden;">EDIT MODE — drag blue(outer)/orange(inner) dots, press 'e' to exit</p>
+    </div>
+
+    <div id="notification" class="hidden">Address copied!</div>
+
+    <table border="0" style="border-collapse: collapse;" align="center">
+      <tr>
+        <td style="border: none;">space=</td>
+        <td style="border: none;">new random array image</td>
+        <td style="border: none;">&nbsp;&nbsp;&nbsp;&nbsp;</td>
+        <td style="border: none;">a=</td>
+        <td style="border: none;">show address in graphic</td>
+        <td style="border: none;">&nbsp;&nbsp;&nbsp;&nbsp;</td>
+        <td style="border: none;">r=</td>
+        <td style="border: none;">plot radial address</td>
+        <td style="border: none;">&nbsp;&nbsp;&nbsp;&nbsp;</td>
+        <td style="border: none;">l=</td>
+        <td style="border: none;">plot linear address</td>
+        <td style="border: none;">A=</td>
+        <td style="border: none;">Input Complete copied addr text</td>
+      </tr>
+      <tr>
+        <td style="border: none;">s=</td>
+        <td style="border: none;">decrease spoke count</td>
+        <td style="border: none;">&nbsp;&nbsp;&nbsp;&nbsp;</td>
+        <td style="border: none;">S=</td>
+        <td style="border: none;">increase spoke count</td>
+        <td style="border: none;">&nbsp;&nbsp;&nbsp;&nbsp;</td>
+        <td style="border: none;">i=</td>
+        <td style="border: none;">decrease increments</td>
+        <td style="border: none;">&nbsp;&nbsp;&nbsp;&nbsp;</td>
+        <td style="border: none;">I=</td>
+        <td style="border: none;">increase increments&nbsp;&nbsp;&nbsp;</td>
+        <td style="border: none;">k= </td>
+        <td style="border: none;">Copy address to clipboard</td>
+      </tr>
+      <tr>
+        <td style="border: none;">o=</td>
+        <td style="border: none;">plot origin line</td>
+        <td style="border: none;">&nbsp;&nbsp;&nbsp;&nbsp;</td>
+        <td style="border: none;">c=</td>
+        <td style="border: none;">toggle outer circle</td>
+        <td style="border: none;">&nbsp;&nbsp;&nbsp;&nbsp;</td>
+        <td style="border: none;">C=</td>
+        <td style="border: none;">toggle circles</td>
+        <td style="border: none;">&nbsp;&nbsp;&nbsp;&nbsp;</td>
+        <td style="border: none;">R=</td>
+        <td style="border: none;">draw radial lines</td>
+        <td style="border: none;">B=</td>
+        <td style="border: none;"><strong>Open Batch Exporter</strong></td>
+      </tr>
+      <tr>
+        <td style="border: none;">t=</td>
+        <td style="border: none;">input outer array</td>
+        <td style="border: none;">&nbsp;&nbsp;&nbsp;&nbsp;</td>
+        <td style="border: none;">n=</td>
+        <td style="border: none;">input inner array</td>
+        <td style="border: none;">&nbsp;&nbsp;&nbsp;&nbsp;</td>
+        <td style="border: none;">W=</td>
+        <td style="border: none;">increase line width</td>
+        <td style="border: none;">&nbsp;&nbsp;&nbsp;&nbsp;</td>
+        <td style="border: none;">w=</td>
+        <td style="border: none;">decrease line width</td>
+        <td style="border: none;"></td>
+        <td style="border: none;"></td>
+      </tr>
+      <tr>
+        <td style="border: none;">f=</td>
+        <td style="border: none;">toggle fill</td>
+        <td style="border: none;">&nbsp;&nbsp;&nbsp;&nbsp;</td>
+        <td style="border: none;">d=</td>
+        <td style="border: none;">cycle radial dots modes (3x)</td>
+        <td style="border: none;">&nbsp;&nbsp;&nbsp;&nbsp;</td>
+        <td style="border: none;">b= </td>
+        <td style="border: none;">toggle Fill style (B&amp;W hash)</td>
+        <td style="border: none;">&nbsp;&nbsp;&nbsp;&nbsp;</td>
+        <td style="border: none;">F=</td>
+        <td style="border: none;">Toggle Filter</td>
+        <td style="border: none;">e=</td>
+        <td style="border: none;">toggle edit mode (drag dots)</td>
+      </tr>
+    </table>
+
+    <!-- BATCH EXPORT MODAL -->
+    <div id="batchModal" class="modal-backdrop hidden">
+      <div class="modal-container">
+        <div class="modal-header">
+          <h2>📖 Batch Chapter Art Exporter</h2>
+          <button class="close-modal-btn" onclick="closeBatchModal()">&times;</button>
+        </div>
+
+        <div class="modal-body">
+          <div class="batch-input-section">
+            <label for="batchAddressesText" class="section-label">
+              <strong>Paste Google Sheet Address Column / List</strong>
+              <span class="sublabel">(One row per chapter, e.g. Outer: ... Inner: ...)</span>
+            </label>
+            <textarea id="batchAddressesText" rows="6" placeholder="Paste Column F or addresses here...
+Example:
+Outer: 9,10,12,15,14,2,16,3,9,3,15,8,5,15,16,5 Inner: 1,8,4,12,6,1,8,2,7,2,7,3,3,4,1,2
+Outer: 10,14,16,15,12,14,15,11,10,14,12,14,15,16,12,15 Inner: 6,10,3,9,8,1,4,8,4,3,2,6,1,7,4,9"></textarea>
+            
+            <div class="batch-controls-row">
+              <button class="primary-btn" onclick="parseAndPreviewBatch()">✨ Generate Previews</button>
+              <button class="secondary-btn" onclick="loadSampleBatchData()">Load Sample Data</button>
+              <button class="secondary-btn" onclick="clearBatch()">Clear</button>
+              <span id="batchCountBadge" class="badge">0 chapters detected</span>
+            </div>
+          </div>
+
+          <!-- Settings Bar / Preset Options -->
+          <div class="settings-panel">
+            <div class="settings-header">
+              <strong>Render Settings</strong>
+              <label class="preset-toggle">
+                <input type="checkbox" id="usePresetCheck" checked onchange="togglePresetMode()">
+                <span>Use Book Chapter Preset (B&amp;W Hash, LineWidth 5, Outer Intersection Dots)</span>
+              </label>
+            </div>
+            
+            <div id="customSettingsFields" class="settings-fields disabled">
+              <div class="setting-item">
+                <label>Line Width:</label>
+                <input type="number" id="batchLineWidth" value="5" min="1" max="20" onchange="updateBatchSetting()">
+              </div>
+              <div class="setting-item">
+                <label>Style:</label>
+                <select id="batchFillStyle" onchange="updateBatchSetting()">
+                  <option value="bw">B&amp;W Hash Pattern</option>
+                  <option value="color">Red &amp; White Color</option>
+                </select>
+              </div>
+              <div class="setting-item">
+                <label>Radial Dots:</label>
+                <select id="batchRadialDots" onchange="updateBatchSetting()">
+                  <option value="2">2 - Outer Intersections Only</option>
+                  <option value="1">1 - All Spokes</option>
+                  <option value="0">0 - None</option>
+                </select>
+              </div>
+              <div class="setting-item">
+                <label>Outer Circle:</label>
+                <input type="checkbox" id="batchOuterCircle" onchange="updateBatchSetting()">
+              </div>
+              <div class="setting-item">
+                <label>Image Size:</label>
+                <select id="batchResolution" onchange="updateBatchSetting()">
+                  <option value="600">600 &times; 600 px (Standard)</option>
+                  <option value="1200">1200 &times; 1200 px (High-Res Print)</option>
+                  <option value="2400">2400 &times; 2400 px (Ultra-Res)</option>
+                </select>
+              </div>
+              <div class="setting-item">
+                <label>File Prefix:</label>
+                <input type="text" id="batchFilePrefix" value="chapter" style="width: 80px;" onchange="updateBatchSetting()">
+              </div>
+              <div class="setting-item">
+                <label>Start #:</label>
+                <input type="number" id="batchStartNumber" value="1" min="0" style="width: 50px;" onchange="updateBatchSetting()">
+              </div>
+            </div>
+          </div>
+
+          <!-- Download Action Header -->
+          <div class="export-actions-bar">
+            <div>
+              <span id="exportStatusMsg">Ready to generate.</span>
+            </div>
+            <div>
+              <button id="downloadZipBtn" class="success-btn" onclick="downloadAllChaptersZip()" disabled>
+                📦 Download All as ZIP (chapters.zip)
+              </button>
+            </div>
+          </div>
+
+          <!-- Preview Grid -->
+          <div id="batchPreviewGrid" class="preview-grid">
+            <div class="empty-preview-prompt">
+              Paste addresses above and click <strong>Generate Previews</strong> to view all chapter icons.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="addressMaker.js"></script>
+  </body>
+</html>
