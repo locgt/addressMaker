@@ -131,6 +131,7 @@ function keyDown(evt) {
 
 	// Open Batch Modal on Shift+B ('B')
 	if (evt.key === "B") {
+		evt.preventDefault();
 		openBatchModal();
 		return;
 	}
