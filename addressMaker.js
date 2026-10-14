@@ -33,10 +33,10 @@ let batchState = {
 	activeEditIndex: null,// currently editing chapter index in main canvas
 	settings: {
 		usePreset: true,
-		lineWidth: 5,
+		lineWidth: 4,
 		fillStyle: 'bw',   // 'bw' or 'color'
 		radialdots: 2,     // 2: outer intersection only, 1: all, 0: none
-		outerCircle: false,
+		outerCircle: true,
 		resolution: 600,
 		filePrefix: 'chapter',
 		startNumber: 1
@@ -712,10 +712,10 @@ function togglePresetMode() {
 	if (fields) {
 		if (usePreset) {
 			fields.classList.add('disabled');
-			document.getElementById('batchLineWidth').value = 5;
+			document.getElementById('batchLineWidth').value = 4;
 			document.getElementById('batchFillStyle').value = 'bw';
 			document.getElementById('batchRadialDots').value = '2';
-			document.getElementById('batchOuterCircle').checked = false;
+			document.getElementById('batchOuterCircle').checked = true;
 		} else {
 			fields.classList.remove('disabled');
 		}
@@ -726,7 +726,7 @@ function togglePresetMode() {
 }
 
 function updateBatchSetting() {
-	batchState.settings.lineWidth = parseInt(document.getElementById('batchLineWidth').value) || 5;
+	batchState.settings.lineWidth = parseInt(document.getElementById('batchLineWidth').value) || 4;
 	batchState.settings.fillStyle = document.getElementById('batchFillStyle').value;
 	batchState.settings.radialdots = parseInt(document.getElementById('batchRadialDots').value) || 0;
 	batchState.settings.outerCircle = document.getElementById('batchOuterCircle').checked;
@@ -748,11 +748,11 @@ function updateBatchSetting() {
 function getBatchRenderOptions() {
 	if (batchState.settings.usePreset) {
 		return {
-			lineWidth: 5,
+			lineWidth: 4,
 			BWFill: true,
 			fill: true,
 			radialdots: 2,
-			circle: false,
+			circle: true,
 			circles: false,
 			radials: false,
 			plotOrigin: false,
@@ -999,26 +999,18 @@ function loadChapterIntoMainCanvas(index) {
 	global.spokes = item.spokes;
 	global.increments = item.increments;
 
-	// Apply chapter art preset settings or custom batch settings to main canvas
-	if (batchState.settings.usePreset) {
-		global.BWFill = true;
-		global.fill = true;
-		global.lineWidth = 5;
-		global.radialdots = 2;
-		global.circle = false;
-		global.circles = false;
-		global.radials = false;
-		global.graphType = 'radial';
-	} else {
-		global.BWFill = batchState.settings.fillStyle === 'bw';
-		global.fill = true; // Always fill
-		global.lineWidth = batchState.settings.lineWidth;
-		global.radialdots = batchState.settings.radialdots;
-		global.circle = batchState.settings.outerCircle;
-		global.circles = false; // Always false for single edit
-		global.radials = false; // Always false for single edit
-		global.graphType = 'radial'; // Always radial for chapter art
-	}
+	// Apply exact thumbnail render settings to main canvas
+	const renderOpts = getBatchRenderOptions();
+	global.BWFill = renderOpts.BWFill;
+	global.fill = renderOpts.fill;
+	global.lineWidth = renderOpts.lineWidth;
+	global.radialdots = renderOpts.radialdots;
+	global.circle = renderOpts.circle;
+	global.circles = renderOpts.circles;
+	global.radials = renderOpts.radials;
+	global.plotOrigin = renderOpts.plotOrigin;
+	global.filter = renderOpts.filter;
+	global.graphType = renderOpts.graphType;
 
 	recomputeCoords();
 	plotArrays(global.graphType);
